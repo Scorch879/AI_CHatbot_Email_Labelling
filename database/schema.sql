@@ -52,3 +52,17 @@ on public.applicants(status);
 
 create index if not exists idx_applicants_created_at
 on public.applicants(created_at desc);
+
+drop index if exists public.idx_applicants_email_message_id;
+
+alter table public.applicants
+drop constraint if exists applicants_email_message_id_unique;
+
+alter table public.applicants
+add constraint applicants_email_message_id_unique unique (email_message_id);
+
+alter table public.applicants
+add column if not exists attachment_files text[],
+add column if not exists attachment_summary text,
+add column if not exists resume_text text,
+add column if not exists resume_summary text;

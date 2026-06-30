@@ -5,3 +5,5 @@ supabase
 pandas
 openpyxl
 schedule
+pypdf
+python-docx

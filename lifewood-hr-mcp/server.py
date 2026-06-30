@@ -1,5 +1,8 @@
 from __future__ import annotations
-
+import io
+from pathlib import Path
+from pypdf import PdfReader
+from docx import Document
 import email
 import imaplib
 import json
@@ -84,6 +87,82 @@ def _extract_text_body(msg: Message) -> str:
 
     return ""
 
+def _safe_filename(filename: str) -> str:
+    filename = filename or "attachment"
+    return re.sub(r"[^a-zA-Z0-9._-]", "_", filename)
+
+
+def _extract_text_from_attachment(filename: str, content_type: str, data: bytes) -> str:
+    filename_lower = filename.lower()
+
+    try:
+        if filename_lower.endswith(".pdf") or content_type == "application/pdf":
+            reader = PdfReader(io.BytesIO(data))
+            pages = []
+            for page in reader.pages:
+                pages.append(page.extract_text() or "")
+            return "\n".join(pages).strip()
+
+        if filename_lower.endswith(".docx"):
+            doc = Document(io.BytesIO(data))
+            return "\n".join(p.text for p in doc.paragraphs if p.text.strip()).strip()
+
+        if filename_lower.endswith(".txt") or content_type.startswith("text/"):
+            return data.decode("utf-8", errors="replace").strip()
+
+    except Exception as exc:
+        return f"[Could not extract text from {filename}: {exc}]"
+
+    return ""
+
+
+def _extract_attachments(msg: Message, email_message_id: str) -> List[Dict[str, Any]]:
+    attachments = []
+
+    attachments_dir = Path(ROOT_DIR) / "attachments"
+    attachments_dir.mkdir(exist_ok=True)
+
+    safe_email_id = _safe_filename(email_message_id.replace("<", "").replace(">", ""))
+    email_dir = attachments_dir / safe_email_id
+    email_dir.mkdir(exist_ok=True)
+
+    for part in msg.walk():
+        filename = part.get_filename()
+        disposition = str(part.get("Content-Disposition", "")).lower()
+
+        if not filename and "attachment" not in disposition:
+            continue
+
+        filename = _decode_mime_words(filename or "attachment")
+        safe_name = _safe_filename(filename)
+        content_type = part.get_content_type()
+
+        payload = part.get_payload(decode=True)
+        if not payload:
+            continue
+
+        file_path = email_dir / safe_name
+        with open(file_path, "wb") as f:
+            f.write(payload)
+
+        extracted_text = _extract_text_from_attachment(
+            filename=safe_name,
+            content_type=content_type,
+            data=payload,
+        )
+
+        attachments.append(
+            {
+                "filename": safe_name,
+                "content_type": content_type,
+                "path": str(file_path),
+                "size_bytes": len(payload),
+                "text": extracted_text,
+            }
+        )
+
+    return attachments
+
 
 def _parse_email_date(value: Optional[str]) -> Optional[str]:
     if not value:
@@ -114,7 +193,7 @@ def _demo_emails() -> List[Dict[str, Any]]:
 
 
 @mcp.tool()
-def fetch_hr_emails(limit: int = 10, unread_only: bool = True) -> str:
+def fetch_hr_emails(limit: int = 100, unread_only: bool = False) -> str:
     """
     Fetch applicant emails from the HR inbox using IMAP.
 
@@ -158,6 +237,8 @@ def fetch_hr_emails(limit: int = 10, unread_only: bool = True) -> str:
 
                 raw_email = msg_data[0][1]
                 msg = email.message_from_bytes(raw_email)
+                email_message_id = msg.get("Message-ID") or message_id.decode()
+                attachments = _extract_attachments(msg,email_message_id)
 
                 results.append(
                     {
@@ -166,6 +247,7 @@ def fetch_hr_emails(limit: int = 10, unread_only: bool = True) -> str:
                         "from": _decode_mime_words(msg.get("From")),
                         "date": _parse_email_date(msg.get("Date")),
                         "body": _extract_text_body(msg),
+                        "attachments": attachments,
                     }
                 )
 
@@ -213,6 +295,14 @@ def extract_applicant_with_ollama(email_json: str) -> str:
     except json.JSONDecodeError as exc:
         return json.dumps({"error": f"Invalid email_json: {exc}"}, indent=2)
 
+    attachments = email_data.get("attachments", [])
+    attachment_text = "\n\n".join([
+        f"File: {att.get('filename')}\n{att.get('text', '')}"
+        for att in attachments
+        if att.get("text")
+        ]
+    )
+    attachment_files = [att.get("filename") for att in attachments if att.get("path")]
     prompt = f"""
 You are an HR applicant email extraction assistant.
 Extract applicant details from the email below and return ONLY valid JSON.
@@ -229,6 +319,8 @@ Required JSON keys:
 - education: education/course/school if mentioned, else null
 - notes: short HR-friendly summary
 - ai_confidence: number from 0 to 1
+- resume_summary: short summary of resume/attachment if available, else null
+- attachment_summary: short summary of all attachments if available, else null
 
 Email metadata:
 Subject: {email_data.get('subject', '')}
@@ -236,6 +328,9 @@ From: {email_data.get('from', '')}
 Date: {email_data.get('date', '')}
 
 Email body:
+Attachment text:
+attachment_text = attachment_text[:int(os.getenv("ATTACHMENT_TEXT_LIMIT", "12000"))]
+{attachment_text}
 {email_data.get('body', '')}
 """.strip()
 
@@ -252,6 +347,10 @@ Email body:
         extracted["email_subject"] = email_data.get("subject")
         extracted["email_date"] = email_data.get("date")
         extracted["raw_email"] = email_data.get("body")
+        extracted["attachment_files"] = attachment_files
+        extracted["resume_text"] = attachment_text[:10000] if attachment_text else None
+        extracted["resume_summary"] = extracted.get("resume_summary")
+        extracted["attachment_summary"] = extracted.get("attachment_summary")
         extracted["source"] = "Email"
         extracted.setdefault("status", "New")
 
@@ -292,40 +391,67 @@ def store_applicant_data(applicant_json: str = "", name: str = "", email: str = 
 
 
 @mcp.tool()
-def process_new_applicant_emails(limit: int = 10) -> str:
+def _is_application_email(email_data: dict) -> bool:
+    keywords = os.getenv(
+        "APPLICATION_KEYWORDS",
+        "application,applying,apply,resume,cv,curriculum vitae,job application,internship,position,hiring"
+    )
+
+    keyword_list = [k.strip().lower() for k in keywords.split(",") if k.strip()]
+
+    text = f"""
+    {email_data.get("subject", "")}
+    {email_data.get("from", "")}
+    {email_data.get("body", "")}
+    """.lower()
+
+    return any(keyword in text for keyword in keyword_list)
+
+@mcp.tool()
+def process_new_applicant_emails(limit: int = 100) -> str:
     """
-    End-to-end workflow: fetch unread HR emails, extract with Ollama, and save to Supabase.
+    End-to-end workflow: fetch unread HR application emails, extract with Ollama, and save to Supabase.
     """
     try:
-        fetched = json.loads(fetch_hr_emails(limit=limit, unread_only=True))
+        fetched = json.loads(fetch_hr_emails(limit=limit, unread_only=False))
         if isinstance(fetched, dict) and fetched.get("error"):
             return json.dumps(fetched, indent=2)
 
         summary = []
+        skipped = []
+
         for email_data in fetched:
+            if not _is_application_email(email_data):
+                skipped.append({
+                    "subject": email_data.get("subject"),
+                    "result": "Skipped: not an application email"
+                })
+                continue
+
             extracted_json = extract_applicant_with_ollama(json.dumps(email_data))
             extracted = json.loads(extracted_json)
             store_result = store_applicant_data(applicant_json=extracted_json)
-            summary.append(
-                {
-                    "subject": email_data.get("subject"),
-                    "applicant": extracted.get("name") or extracted.get("email"),
-                    "position": extracted.get("position"),
-                    "category": extracted.get("category"),
-                    "result": store_result,
-                }
-            )
+
+            summary.append({
+                "subject": email_data.get("subject"),
+                "applicant": extracted.get("name") or extracted.get("email"),
+                "position": extracted.get("position"),
+                "category": extracted.get("category"),
+                "result": store_result,
+            })
 
         return json.dumps(
             {
                 "processed_count": len(summary),
+                "skipped_count": len(skipped),
                 "items": summary,
+                "skipped": skipped,
             },
             indent=2,
         )
+
     except Exception as exc:
         return json.dumps({"error": f"Workflow failed: {exc}"}, indent=2)
-
 
 @mcp.tool()
 def export_to_excel() -> str:

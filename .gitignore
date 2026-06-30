@@ -1,7 +1,8 @@
-# Environment variables (API Keys, etc)
+# Environment variables / secrets
 .env
+lifewood-hr-mcp/.env
 
-# Dependencies (Python and Node if applicable)
+# Dependencies
 venv/
 lifewood-hr-mcp/venv/
 node_modules/
@@ -14,6 +15,7 @@ __pycache__/
 # Database and output files
 *.db
 *.sqlite3
+exports/
 applicant_report.xlsx
 
 # Logs

@@ -1,18 +1,34 @@
 # MCP Server Documentation
 
-This module exposes our Python functions as standardized tools that an AI agent can execute using the Model Context Protocol (MCP).
+The MCP server is located at:
 
-## Files Created
+```text
+lifewood-hr-mcp/server.py
+```
 
-### 1. `lifewood-hr-mcp/server.py`
-- **Purpose**: Initializes the `FastMCP` server, making Python methods callable via standard I/O (stdio) for OpenClaw.
-- **Dependencies**: `mcp`, `pandas`, `json`
-- **Exposed Tools**:
-  - `@mcp.tool() fetch_hr_emails(limit: int)`: 
-    Connects to the inbox (currently simulated) to extract raw applicant data from unread emails. It returns a JSON string containing the sender email, subject, and body.
-  - `@mcp.tool() store_applicant_data(name, email, position, notes)`:
-    Takes the extracted elements parsed by the AI and saves them permanently using our database module.
-  - `@mcp.tool() export_to_excel()`:
-    Reads all applicants from the database, converts them to a `pandas` DataFrame, and writes them to `applicant_report.xlsx` in the root folder.
+## Available MCP tools
 
-**Note**: To use this with OpenClaw, the absolute path of this Python script must be registered in OpenClaw's `config.yaml` file pointing to the virtual environment's Python executable.
+### `fetch_hr_emails(limit: int = 10, unread_only: bool = True)`
+Reads applicant emails from the HR inbox using IMAP. If `DEMO_MODE=true`, it returns sample emails.
+
+### `extract_applicant_with_ollama(email_json: str)`
+Sends one email to local Ollama and returns structured JSON containing applicant details.
+
+### `store_applicant_data(applicant_json: str)`
+Stores extracted applicant information in Supabase.
+
+### `process_new_applicant_emails(limit: int = 10)`
+Runs the full workflow:
+
+```text
+fetch emails -> extract with Ollama -> save to Supabase
+```
+
+### `export_to_excel()`
+Reads all applicant records from Supabase and exports them to an Excel file.
+
+## Required services
+
+- IMAP email access for reading applicant messages.
+- Ollama running locally for AI extraction.
+- Supabase database for applicant storage.

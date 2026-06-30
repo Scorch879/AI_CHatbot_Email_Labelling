@@ -1,0 +1,10 @@
+{
+  "mcpServers": {
+    "lifewood-hr-tools": {
+      "command": "d:\\VS Code\\AI_CHatbot_Email_Labelling\\lifewood-hr-mcp\\venv\\Scripts\\python.exe",
+      "args": [
+        "d:\\VS Code\\AI_CHatbot_Email_Labelling\\lifewood-hr-mcp\\server.py"
+      ]
+    }
+  }
+}

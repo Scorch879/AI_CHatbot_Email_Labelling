@@ -1,3 +1,20 @@
+# Environment variables (API Keys, etc)
 .env
+
+# Dependencies (Python and Node if applicable)
+venv/
+lifewood-hr-mcp/venv/
 node_modules/
+
+# Python cache
+__pycache__/
+*.py[cod]
+*$py.class
+
+# Database and output files
+*.db
+*.sqlite3
+applicant_report.xlsx
+
+# Logs
 *.log

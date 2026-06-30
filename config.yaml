@@ -1,10 +1,10 @@
-# config.yaml
-manager:
-  workspace_dir: "./skills"
-
-models:
-  default: "gemini-2.5-flash"
-  providers:
-    google:
-      api_key: "${GEMINI_API_KEY}"
-      model: "gemini-2.5-flash" # Fast and accurate for data extraction
+{
+  "mcpServers": {
+    "lifewood-hr-tools": {
+      "command": "d:\\VS Code\\AI_CHatbot_Email_Labelling\\lifewood-hr-mcp\\venv\\Scripts\\python.exe",
+      "args": [
+        "d:\\VS Code\\AI_CHatbot_Email_Labelling\\lifewood-hr-mcp\\server.py"
+      ]
+    }
+  }
+}

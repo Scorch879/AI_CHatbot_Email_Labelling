@@ -23,7 +23,7 @@ const Dashboard = () => {
       const accepted = data.filter(a => a.status === 'accepted').length;
       setStats({ total, intern, regular, rate: total > 0 ? ((accepted / total) * 100).toFixed(1) : 0 });
 
-      let processed = [];
+      let processed;
       if (filter === 'Yearly') {
         processed = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'].map(m => ({ name: m, InternAccepted: Math.floor(Math.random()*10), InternRejected: Math.floor(Math.random()*5), RegularAccepted: Math.floor(Math.random()*10), RegularRejected: Math.floor(Math.random()*5) }));
       } else if (filter === 'Monthly') {
@@ -49,11 +49,11 @@ const Dashboard = () => {
             <img src={logo} alt="Lifemail Logo" className="h-12 w-auto object-contain" />
           </div>
           <div className="space-y-4">
-            <button className="flex items-center gap-3 text-[#046241] dark:text-green-400 font-bold"><LayoutDashboard size={20}/> Dashboard</button>
-            <button className="flex items-center gap-3 text-gray-500 dark:text-gray-400"><FileText size={20}/> Applicants</button>
-            <button className="flex items-center gap-3 text-gray-500 dark:text-gray-400"><Mail size={20}/> Internal Mail</button>
-            <button className="flex items-center gap-3 text-gray-500 dark:text-gray-400"><PieChart size={20}/> Reports</button>
-            <button className="flex items-center gap-3 text-gray-500 dark:text-gray-400"><Settings size={20}/> Settings</button>
+            <button onClick={() => navigate('/dashboard')} className="flex items-center gap-3 text-[#046241] dark:text-green-400 font-bold w-full text-left"><LayoutDashboard size={20}/> Dashboard</button>
+            <button className="flex items-center gap-3 text-gray-500 dark:text-gray-400 hover:text-[#046241] transition w-full text-left"><FileText size={20}/> Applicants</button>
+            <button onClick={() => navigate('/dashboard/internal-mail')} className="flex items-center gap-3 text-gray-500 dark:text-gray-400 hover:text-[#046241] transition w-full text-left"><Mail size={20}/> Internal Mail</button>
+            <button className="flex items-center gap-3 text-gray-500 dark:text-gray-400 hover:text-[#046241] transition w-full text-left"><PieChart size={20}/> Reports</button>
+            <button className="flex items-center gap-3 text-gray-500 dark:text-gray-400 hover:text-[#046241] transition w-full text-left"><Settings size={20}/> Settings</button>
           </div>
         </div>
         <div className="space-y-4">
@@ -112,16 +112,16 @@ const Dashboard = () => {
             </p>
           </button>
 
-          <article className="rounded-2xl border border-white/10 bg-white/[0.06] p-6">
-            <Users className="text-[#ffb347]" size={28} />
-            <h2 className="mt-5 text-xl font-black">Applicants</h2>
-            <p className="mt-2 text-sm leading-6 text-white/55">Candidate records and extracted email labels.</p>
+          <article className="rounded-2xl border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800 p-6 shadow-sm">
+            <Users className="text-[#046241] dark:text-green-400" size={28} />
+            <h2 className="mt-5 text-xl font-black text-[#133020] dark:text-white">Applicants</h2>
+            <p className="mt-2 text-sm leading-6 text-gray-600 dark:text-gray-400">Candidate records and extracted email labels.</p>
           </article>
 
-          <article className="rounded-2xl border border-white/10 bg-white/[0.06] p-6">
-            <BarChart3 className="text-[#ffb347]" size={28} />
-            <h2 className="mt-5 text-xl font-black">Reports</h2>
-            <p className="mt-2 text-sm leading-6 text-white/55">Excel exports and HR automation summaries.</p>
+          <article className="rounded-2xl border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800 p-6 shadow-sm">
+            <BarChart3 className="text-[#046241] dark:text-green-400" size={28} />
+            <h2 className="mt-5 text-xl font-black text-[#133020] dark:text-white">Reports</h2>
+            <p className="mt-2 text-sm leading-6 text-gray-600 dark:text-gray-400">Excel exports and HR automation summaries.</p>
           </article>
         </section>
 

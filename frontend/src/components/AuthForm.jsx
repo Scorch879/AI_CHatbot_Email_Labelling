@@ -1,5 +1,7 @@
 import React, { useState } from 'react';
-import { Mail, Lock, Eye, EyeOff, User, Briefcase, ShieldCheck, ArrowRight } from 'lucide-react';
+import { Mail, Lock, Eye, User, Briefcase, ShieldCheck, ArrowRight } from 'lucide-react';
+// Import the logo from the assets folder
+import logo from '../assets/logo.jpg'; 
 import { supabase } from '../supabaseClient';
 
 const AuthForm = () => {
@@ -10,7 +12,6 @@ const AuthForm = () => {
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [fullName, setFullName] = useState('');
-  const [company, setCompany] = useState('');
   const [loading, setLoading] = useState(false);
   const [errorMsg, setErrorMsg] = useState(null);
   const [successMsg, setSuccessMsg] = useState(null);
@@ -31,7 +32,7 @@ const AuthForm = () => {
           email,
           password,
           options: {
-            data: { full_name: fullName, company },
+            data: { full_name: fullName },
           },
         });
         if (error) throw error;
@@ -80,15 +81,19 @@ const AuthForm = () => {
   };
 
   return (
-    <div className="min-h-screen bg-[#f9f7f7] flex items-center justify-center p-4 font-sans">
+    <div className="min-h-screen bg-[#f5eedb] flex items-center justify-center p-4 font-sans">
+      
       <div className="bg-white rounded-2xl shadow-lg w-full max-w-[420px] p-8 border border-gray-100">
         
         {/* Dynamic Header */}
         <div className="mb-8">
-          <p className="text-[11px] font-extrabold tracking-wider text-[#046241] uppercase mb-1">
-            {isLogin ? 'Welcome back' : 'Start your workspace'}
-          </p>
-          <h2 className="text-3xl font-extrabold text-[#133020] mb-2">
+          {/* Logo centered using mx-auto and block */}
+          <img 
+            src={logo} 
+            alt="Lifemail Logo" 
+            className="h-15 w-auto mb-1 object-contain mx-auto block" 
+          />
+          <h2 className="text-2xl font-extrabold text-[#133020] mb-2">
             {isLogin ? 'Log in to Lifemail' : 'Create your Lifemail account'}
           </h2>
           <p className="text-sm text-gray-600">
@@ -130,10 +135,7 @@ const AuthForm = () => {
           )}
           
           <InputField icon={Mail} type="email" label="Work email" placeholder="you@lifemail.app" value={email} onChange={(e) => setEmail(e.target.value)} />
-          
-          {!isLogin && (
-            <InputField icon={Briefcase} type="text" label="Company" placeholder="Company name" value={company} onChange={(e) => setCompany(e.target.value)} />
-          )}
+  
           
           <InputField 
             icon={Lock} 
@@ -157,10 +159,10 @@ const AuthForm = () => {
             )}
           </div>
 
-          {/* Submit Button (Gradient Style) */}
-          <button type="submit" disabled={loading} className="w-full bg-gradient-to-r from-[#046241] to-[#ffb347] hover:opacity-90 disabled:opacity-70 text-white font-bold py-3 px-6 rounded-lg flex items-center justify-center transition-all mb-4 group shadow-md shadow-[#133020]/20">
-            <span>{loading ? 'Processing...' : (isLogin ? 'Log in' : 'Create account')}</span>
-            {!loading && <ArrowRight size={18} className="ml-2 group-hover:translate-x-1 transition-transform" />}
+          {/* Submit Button */}
+          <button className="w-full bg-linear-to-r from-[#046241] to-[#ffb347] hover:opacity-90 text-white font-bold py-3 px-6 rounded-lg flex items-center justify-center transition-all mb-4 group shadow-md shadow-[#133020]/20">
+            <span>{isLogin ? 'Log in' : 'Create account'}</span>
+            <ArrowRight size={18} className="ml-2 group-hover:translate-x-1 transition-transform" />
           </button>
         </form>
         
@@ -178,7 +180,7 @@ const AuthForm = () => {
 
         {/* Protected Workspace Footer */}
         <div className="bg-[#f5eedb] rounded-xl p-4 flex items-start text-sm border border-[#e8dcb8]">
-          <ShieldCheck size={22} className="text-[#046241] mr-3 mt-0.5 flex-shrink-0" />
+          <ShieldCheck size={22} className="text-[#046241] mr-3 mt-0.5 shrink-0" />
           <span className="text-[#133020] font-medium leading-relaxed">Protected workspace access for HR records and email activity.</span>
         </div>
 

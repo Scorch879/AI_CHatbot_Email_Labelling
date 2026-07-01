@@ -99,9 +99,34 @@ python cron/scheduler.py
 
 By default, `RUN_ONCE=true`, so it runs one sync and one report export immediately.
 
-## Notes
-
 - Do not upload `.env` to GitHub.
 - Use a Gmail app password, not your normal Gmail password.
 - Use a Supabase service-role key only on the backend/server, never in frontend code.
 - The original SQLite storage has been replaced with Supabase.
+
+---
+
+## 7. Frontend Architecture & Email Authentication Guide (For Developers)
+
+To protect sensitive HR data, the Lifemail frontend uses a bespoke **Invite-Only Authentication Architecture**. Public sign-ups are strictly disabled.
+
+### 🔐 How Email Authentication Works
+1. **No Public Registration:** Users cannot create their own accounts via the UI.
+2. **Admin Provisioning:** Developers and HR Administrators must provision accounts using the backend Admin API.
+3. **Forced Password Reset:** When a user is created via our CLI, they are assigned a temporary 10-character password and flagged with `force_password_reset: true` in Supabase `user_metadata`.
+4. **Auth Guard Middleware:** The `<ProtectedRoute>` React component intercepts all route transitions. When a user logs in for the first time, they are mathematically blocked from accessing `/dashboard` and are routed to `/reset-password` to establish a private password.
+
+### 🧑‍💻 How to Create Users (Local Development & Seeding)
+To create a new employee or test user, open your terminal inside the `frontend/` directory and execute the built-in NPM script:
+
+```bash
+cd frontend
+npm run create-user employee@lifewood.com "Employee Name"
+```
+
+The CLI will communicate with the Supabase Admin API, generate the user, build their public profile, and output their temporary 10-character password to your console.
+
+### 📚 Further Documentation
+For complete architectural details and onboarding templates, reference:
+- [Authentication Flow Architecture](file:///d:/VS%20Code/AI_CHatbot_Email_Labelling/docs/authentication_flow.md)
+- [Employee Onboarding Guide & Email Template](file:///d:/VS%20Code/AI_CHatbot_Email_Labelling/docs/employee_onboarding_guide.md)

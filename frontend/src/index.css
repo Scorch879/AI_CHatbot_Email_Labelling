@@ -1,1 +1,54 @@
 @import "tailwindcss";
+
+@theme {
+  --color-paper: #f5eedb;
+  --color-sea-salt: #F9F7F7;
+  --color-dark-serpent: #133020;
+  --color-castleton: #046241;
+  --color-saffron: #FFB347;
+  --color-earth-yellow: #FFC370;
+}
+
+/* Custom Scrollbar Styling - Highly Visible Brand Colors (No Paper Color) */
+::-webkit-scrollbar {
+  width: 10px;
+  height: 10px;
+}
+
+::-webkit-scrollbar-track {
+  background: #F9F7F7;
+}
+
+.dark ::-webkit-scrollbar-track {
+  background: #08170d;
+}
+
+::-webkit-scrollbar-thumb {
+  background: #046241;
+  border-radius: 9999px;
+  border: 2px solid #F9F7F7;
+}
+
+::-webkit-scrollbar-thumb:hover {
+  background: #FFB347;
+}
+
+.dark ::-webkit-scrollbar-thumb {
+  background: #FFB347;
+  border-radius: 9999px;
+  border: 2px solid #08170d;
+}
+
+.dark ::-webkit-scrollbar-thumb:hover {
+  background: #FFC370;
+}
+
+/* Firefox scrollbar support */
+* {
+  scrollbar-width: thin;
+  scrollbar-color: #046241 #F9F7F7;
+}
+
+.dark * {
+  scrollbar-color: #FFB347 #08170d;
+}

@@ -1,8 +1,11 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { Lock, Eye, EyeOff, ShieldAlert, ArrowRight, Loader2, CheckCircle } from 'lucide-react';
 import logo from '../assets/logo.jpg';
 import { supabase } from '../supabaseClient';
 import { useNavigate } from 'react-router-dom';
+import { useAuth } from '../auth/useAuth';
+
+const MIN_PASSWORD_LENGTH = 12;
 
 const InputField = ({ icon: Icon, type, placeholder, label, value, onChange, required }) => {
   const [showPassword, setShowPassword] = useState(false);
@@ -46,17 +49,16 @@ const ResetPassword = () => {
   const [success, setSuccess] = useState(false);
   
   const navigate = useNavigate();
+  const redirectTimerRef = useRef(null);
+  const { session, refreshAuth, isConfigured, error: authError } = useAuth();
 
   useEffect(() => {
-    // Quick security check: Ensure they are actually logged in before showing this page
-    const checkUser = async () => {
-      const { data: { session } } = await supabase.auth.getSession();
-      if (!session) {
-        navigate('/');
-      }
-    };
-    checkUser();
-  }, [navigate]);
+    if (!session) {
+      navigate('/', { replace: true });
+    }
+  }, [navigate, session]);
+
+  useEffect(() => () => window.clearTimeout(redirectTimerRef.current), []);
 
   const handleReset = async (e) => {
     e.preventDefault();
@@ -69,26 +71,38 @@ const ResetPassword = () => {
       return;
     }
 
-    if (password.length < 6) {
-      setError("Password must be at least 6 characters long.");
+    if (password.length < MIN_PASSWORD_LENGTH) {
+      setError(`Password must be at least ${MIN_PASSWORD_LENGTH} characters long.`);
       setLoading(false);
       return;
     }
 
     try {
+      if (!isConfigured || !supabase) {
+        throw new Error(authError || 'Supabase authentication is not configured.');
+      }
+
       const { error: updateError } = await supabase.auth.updateUser({
-        password: password,
-        data: { force_password_reset: false }
+        password,
       });
 
       if (updateError) throw updateError;
+
+      const { error: resetFlagError } = await supabase.rpc('complete_password_reset');
+      if (resetFlagError) throw resetFlagError;
+
+      await supabase.auth.updateUser({
+        data: { force_password_reset: false },
+      });
+
+      await refreshAuth();
       
       setSuccess(true);
-      setTimeout(() => {
-        navigate('/dashboard');
-      }, 2000);
+      redirectTimerRef.current = window.setTimeout(() => {
+        navigate('/dashboard', { replace: true });
+      }, 900);
     } catch (err) {
-      console.error('Password Reset Error:', err);
+      console.error('Password reset error:', err);
       setError(err.message || 'Failed to update password. Please try again.');
     } finally {
       setLoading(false);
@@ -109,7 +123,7 @@ const ResetPassword = () => {
             Secure Your Account
           </h2>
           <p className="text-sm text-gray-600 text-center">
-            For security reasons, you must change your temporary auto-generated password before continuing.
+            For security reasons, you must create a private password before continuing.
           </p>
         </div>
 

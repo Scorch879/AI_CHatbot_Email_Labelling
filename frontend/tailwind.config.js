@@ -2,7 +2,7 @@
 export default {
   content: [
     "./src/**/*.{js,jsx,ts,tsx}", // This scans all your React components!
-    "./public/index.html"         // Add this line only if you have a public folder
+    "./index.html"
   ],
   theme: {
     extend: {},

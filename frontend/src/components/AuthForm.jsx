@@ -1,8 +1,9 @@
-import { useState, useEffect } from 'react';
-import { Mail, Lock, Eye, EyeOff, ShieldCheck, ArrowRight, Loader2 } from 'lucide-react';
+import { useState, useEffect, useRef } from 'react';
+import { Mail, Lock, Eye, EyeOff, ShieldCheck, ShieldAlert, ArrowRight, Loader2 } from 'lucide-react';
 import logo from '../assets/logo.jpg';
 import { supabase } from '../supabaseClient';
 import { useNavigate } from 'react-router-dom';
+import { useAuth } from '../auth/useAuth';
 
 // Helper component for input fields
 const InputField = ({ icon: Icon, type, placeholder, label, value, onChange, required }) => {
@@ -42,38 +43,38 @@ const InputField = ({ icon: Icon, type, placeholder, label, value, onChange, req
 const AuthForm = () => {
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
-  
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState(null);
-  
-  // Transition states for the sleek redirect UI
   const [isRedirecting, setIsRedirecting] = useState(false);
   const [redirectMessage, setRedirectMessage] = useState('');
-  
-  const navigate = useNavigate();
 
-  // Security Policy: If an authenticated user visits the login page, redirect them automatically
+  const navigate = useNavigate();
+  const redirectTimerRef = useRef(null);
+  const isRedirectingRef = useRef(false);
+  const {
+    loading: authLoading,
+    session,
+    needsReset,
+    refreshAuth,
+    error: authError,
+    isConfigured,
+    sessionExpired,
+    sessionExpiredMessage,
+  } = useAuth();
+
   useEffect(() => {
-    const checkExistingSession = async () => {
-      const { data: { session } } = await supabase.auth.getSession();
-      if (session) {
-        const userMeta = session.user?.user_metadata || {};
-        const needsReset = userMeta.force_password_reset === true;
-        
-        setIsRedirecting(true);
-        setRedirectMessage('Active session detected. Redirecting securely...');
-        
-        setTimeout(() => {
-          if (needsReset) {
-            navigate('/reset-password');
-          } else {
-            navigate('/dashboard');
-          }
-        }, 1000);
-      }
-    };
-    checkExistingSession();
-  }, [navigate]);
+    if (authLoading || !session || isRedirectingRef.current) return undefined;
+
+    isRedirectingRef.current = true;
+    setIsRedirecting(true);
+    setRedirectMessage('Active session detected. Redirecting securely...');
+
+    redirectTimerRef.current = window.setTimeout(() => {
+      navigate(needsReset ? '/reset-password' : '/dashboard', { replace: true });
+    }, 600);
+  }, [authLoading, navigate, needsReset, session]);
+
+  useEffect(() => () => window.clearTimeout(redirectTimerRef.current), []);
 
   const handleAuth = async (e) => {
     e.preventDefault();
@@ -81,35 +82,39 @@ const AuthForm = () => {
     setError(null);
 
     try {
+      if (!isConfigured || !supabase) {
+        throw new Error(authError || 'Supabase authentication is not configured.');
+      }
+
       const { data: authData, error: signInError } = await supabase.auth.signInWithPassword({
         email,
         password,
       });
       if (signInError) throw signInError;
-      
-      const userMeta = authData?.user?.user_metadata || {};
-      const needsReset = userMeta.force_password_reset === true;
 
-      // Trigger the gorgeous full-screen redirect UI
+      const nextAuth = await refreshAuth();
+      const metadataRequiresReset =
+        authData?.user?.app_metadata?.must_reset_password === true ||
+        authData?.user?.user_metadata?.force_password_reset === true;
+      const shouldReset = nextAuth?.needsReset ?? metadataRequiresReset;
+
+      isRedirectingRef.current = true;
       setIsRedirecting(true);
-      setRedirectMessage(needsReset ? 'Verifying security credentials...' : 'Authenticating your secure workspace...');
-      
-      setTimeout(() => {
-        if (needsReset) {
-          navigate('/reset-password');
-        } else {
-          navigate('/dashboard');
-        }
-      }, 2000);
-      
+      setRedirectMessage(
+        shouldReset ? 'Verifying security credentials...' : 'Authenticating your secure workspace...',
+      );
+
+      window.clearTimeout(redirectTimerRef.current);
+      redirectTimerRef.current = window.setTimeout(() => {
+        navigate(shouldReset ? '/reset-password' : '/dashboard', { replace: true });
+      }, 900);
     } catch (err) {
-      console.error('Auth Error Full Object:', err);
+      console.error('Auth error:', err);
       setError(err.message || 'Invalid login credentials. Please check your email and password.');
       setLoading(false);
     }
   };
 
-  // If redirecting, completely hide the form and show a beautiful loading state
   if (isRedirecting) {
     return (
       <div className="min-h-screen bg-[#f5eedb] flex flex-col items-center justify-center p-4 font-sans transition-opacity duration-500">
@@ -144,9 +149,16 @@ const AuthForm = () => {
           </p>
         </div>
 
-        {error && (
+        {(error || (!isConfigured && authError)) && (
           <div className="mb-4 p-3 bg-red-50 border border-red-200 text-red-600 text-sm rounded-lg">
-            {error}
+            {error || authError}
+          </div>
+        )}
+
+        {sessionExpired && sessionExpiredMessage && !error && (
+          <div className="mb-4 p-3 bg-amber-50 border border-amber-200 text-amber-800 text-sm rounded-lg flex items-start">
+            <ShieldAlert size={18} className="mr-2 mt-0.5 shrink-0 text-amber-600" />
+            <span>{sessionExpiredMessage}</span>
           </div>
         )}
 
@@ -171,20 +183,10 @@ const AuthForm = () => {
             required
           />
 
-          <div className="flex items-center justify-between mb-8 mt-2 text-sm">
-            <label className="flex items-center text-gray-700 cursor-pointer">
-              <input type="checkbox" className="mr-2 rounded border-gray-300 text-[#046241] focus:ring-[#046241] shadow" />
-              Remember me
-            </label>
-            <a href="#" onClick={(e) => e.preventDefault()} className="font-bold text-[#046241] hover:underline whitespace-nowrap ml-4">
-              Forgot password?
-            </a>
-          </div>
-
           <button 
             type="submit" 
-            disabled={loading}
-            className="w-full bg-linear-to-r from-[#046241] to-[#ffb347] hover:opacity-90 disabled:opacity-70 text-white font-bold py-3 px-6 rounded-lg flex items-center justify-center transition-all mb-6 group shadow-md shadow-[#133020]/20"
+            disabled={loading || !isConfigured}
+            className="w-full bg-linear-to-r from-[#046241] to-[#ffb347] hover:opacity-90 disabled:opacity-70 text-white font-bold py-3 px-6 rounded-lg flex items-center justify-center transition-all mt-8 mb-6 group shadow-md shadow-[#133020]/20"
           >
             {loading ? (
               <Loader2 size={18} className="animate-spin" />

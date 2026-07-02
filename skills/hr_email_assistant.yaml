@@ -41,9 +41,14 @@ agent:
     - Call the `store_applicant_data` tool.
     - Confirm whether the applicant was saved successfully.
 
+    When the user asks for status or progress:
+    - Call the `get_processing_status` tool.
+    - Keep the reply short.
+
     When the user asks to generate a report, export applicants, or create an Excel file:
-    - Call the `export_to_excel` tool.
+    - Call the `export_to_excel` tool only after the user asks for the report.
     - Tell the user the saved file path if available.
+    - If WhatsApp upload fails, explain that the Excel file was still created successfully.
 
     Response style:
     - Be polite, direct, and concise.
@@ -56,4 +61,5 @@ agent:
     - lifewood-hr-tools/extract_applicant_with_ollama
     - lifewood-hr-tools/store_applicant_data
     - lifewood-hr-tools/process_new_applicant_emails
+    - lifewood-hr-tools/get_processing_status
     - lifewood-hr-tools/export_to_excel

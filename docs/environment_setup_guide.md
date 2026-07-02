@@ -28,10 +28,19 @@ OLLAMA_TIMEOUT=120
 
 EXCEL_OUTPUT_PATH=exports/applicant_report.xlsx
 
+# Optional WhatsApp document sending for manual reports
+WHATSAPP_CLOUD_TOKEN=your_whatsapp_cloud_api_token
+# WHATSAPP_ACCESS_TOKEN can also be used instead of WHATSAPP_CLOUD_TOKEN
+WHATSAPP_PHONE_NUMBER_ID=your_phone_number_id
+WHATSAPP_DEFAULT_RECIPIENT=639XXXXXXXXX
+WHATSAPP_GRAPH_API_VERSION=v20.0
+
 SYNC_EMAIL_LIMIT=10
 SYNC_TIME=08:00
 REPORT_TIME=17:00
 RUN_ONCE=true
+ENABLE_SCHEDULED_REPORT=false
+RUN_REPORT_ONCE=false
 ```
 
 Create this frontend file from `frontend/.env.example`:
@@ -52,7 +61,10 @@ VITE_SUPABASE_ANON_KEY=your_supabase_anon_key
 - `SUPABASE_URL`, `SUPABASE_KEY`, and `SUPABASE_SERVICE_ROLE_KEY`: backend-only Supabase credentials.
 - `VITE_SUPABASE_URL` and `VITE_SUPABASE_ANON_KEY`: browser-safe frontend credentials used by the React app.
 - `OLLAMA_BASE_URL` and `OLLAMA_MODEL`: used for local AI extraction.
-- `EXCEL_OUTPUT_PATH`: where the Excel export will be saved.
+- `EXCEL_OUTPUT_PATH`: where the Excel export will be saved when the report/export command is requested.
+- `ENABLE_SCHEDULED_REPORT=false`: prevents Excel report generation from running automatically with the backend/scheduler.
+- `RUN_REPORT_ONCE=false`: prevents a report from being generated during a one-time scheduler run.
+- `WHATSAPP_CLOUD_TOKEN` / `WHATSAPP_ACCESS_TOKEN`: token used only when sending the Excel file to WhatsApp. If this fails, Supabase and Excel generation can still succeed.
 - `DEMO_MODE=true`: uses sample emails instead of connecting to the real inbox.
 
 Never put `SUPABASE_SERVICE_ROLE_KEY` in `frontend/.env` or any Vite-exposed variable.

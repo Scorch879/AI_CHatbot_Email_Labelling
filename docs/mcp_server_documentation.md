@@ -18,14 +18,16 @@ Sends one email to local Ollama and returns structured JSON containing applicant
 Stores extracted applicant information in Supabase.
 
 ### `process_new_applicant_emails(limit: int = 10)`
-Runs the full workflow:
+Runs the email ingestion workflow only:
 
 ```text
 fetch emails -> extract with Ollama -> save to Supabase
+
+Excel export is not part of this automatic ingestion flow.
 ```
 
-### `export_to_excel()`
-Reads all applicant records from Supabase and exports them to an Excel file.
+### `export_to_excel(to_number: str = "", send_to_whatsapp: bool = True)`
+Manually reads applicant records from Supabase and exports them to an Excel file only when the user asks for a report/export. If WhatsApp upload fails, the tool still reports that the Excel file was created and shows the saved file path.
 
 ## Required services
 

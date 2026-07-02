@@ -1,5 +1,5 @@
 mcpServers:
   lifewood-hr-tools:
-    command: python
+    command: "C:/Users/Clyde/AppData/Local/Programs/Python/Python313/python.exe"
     args:
       - "C:/Users/Clyde/Downloads/AI_CHatbot_Email_Labelling_supabase_ollama/AI_CHatbot_Email_Labelling/lifewood-hr-mcp/server.py"

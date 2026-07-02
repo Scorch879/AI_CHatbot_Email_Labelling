@@ -93,8 +93,8 @@ const initialMessages = [
     subject: "GDPR Reminder: Applicant Data Retention Policy",
     preview: "As we approach the 90-day mark for several applications, please review...",
     time: "3h",
-    badge: "Not Urgent",
-    badgeType: "info",
+    badge: "Follow-up",
+    badgeType: "followup",
     color: "#5245e8",
     unread: false,
     starred: false,
@@ -124,10 +124,12 @@ const initialMessages = [
 ];
 
 const badgeStyles = {
-  urgent: "bg-[#FFB347] text-[#133020] dark:bg-[#FFC370] dark:text-[#133020] ring-[#FFB347]/50 font-black",
-  important: "bg-amber-100 text-amber-800 dark:bg-yellow-950/80 dark:text-yellow-300 ring-amber-500/30",
-  info: "bg-sky-100 text-sky-800 dark:bg-sky-950/80 dark:text-sky-300 ring-sky-500/30",
-  muted: "bg-gray-100 text-gray-700 dark:bg-white/10 dark:text-white/60 ring-gray-400/20",
+  urgent: "bg-red-500/15 text-red-700 dark:bg-red-500/25 dark:text-red-300 ring-red-500/30 font-black",
+  important: "bg-amber-100 text-amber-800 dark:bg-yellow-950/80 dark:text-yellow-300 ring-amber-500/30 font-bold",
+  followup: "bg-blue-100 text-blue-800 dark:bg-blue-950/80 dark:text-blue-300 ring-blue-500/30 font-bold",
+  info: "bg-blue-100 text-blue-800 dark:bg-blue-950/80 dark:text-blue-300 ring-blue-500/30 font-bold",
+  muted: "bg-gray-100 text-gray-700 dark:bg-white/10 dark:text-white/60 ring-gray-400/20 font-medium",
+  notimportant: "bg-gray-100 text-gray-700 dark:bg-white/10 dark:text-white/60 ring-gray-400/20 font-medium",
 };
 
 function Badge({ type, children }) {
@@ -166,8 +168,8 @@ export default function InternalMail() {
           subject: item.subject || item.email_subject || 'No Subject',
           preview: item.preview || (Array.isArray(item.body) ? item.body[0] : (item.body ? item.body.toString().slice(0, 80) : 'No content preview...')),
           time: item.time || (item.created_at ? new Date(item.created_at).toLocaleDateString() : 'Recent'),
-          badge: item.badge || 'Info',
-          badgeType: item.badge_type || item.badgeType || 'info',
+          badge: item.badge || (item.badge_type === 'info' ? 'Follow-up' : 'Follow-up'),
+          badgeType: item.badge_type || item.badgeType || 'followup',
           color: item.color || '#2563eb',
           unread: item.unread !== undefined ? item.unread : true,
           starred: item.starred !== undefined ? item.starred : false,
@@ -258,9 +260,11 @@ export default function InternalMail() {
                             msg.sender.toLowerCase().includes(searchQuery.toLowerCase()) ||
                             msg.preview.toLowerCase().includes(searchQuery.toLowerCase());
       if (!matchesSearch) return false;
-      if (filter === "Urgent") return msg.badgeType === "urgent";
-      if (filter === "Important") return msg.badgeType === "important";
-      if (filter === "Not Urgent") return msg.badgeType === "info" || msg.badgeType === "muted";
+      if (filter === "Urgent") return msg.badgeType === "urgent" || msg.badge === "Urgent";
+      if (filter === "Important") return msg.badgeType === "important" || msg.badge === "Important";
+      if (filter === "Follow-up") return msg.badgeType === "followup" || msg.badgeType === "info" || msg.badge === "Follow-up";
+      if (filter === "Not Important") return msg.badgeType === "muted" || msg.badgeType === "notimportant" || msg.badge === "Not Important" || msg.badge === "Not Urgent";
+      if (filter === "Starred") return msg.starred;
       return true;
     });
   }, [messagesList, filter, searchQuery]);
@@ -397,6 +401,7 @@ export default function InternalMail() {
   };
 
   const unreadCount = messagesList.filter((m) => m.unread).length;
+  const starredCount = messagesList.filter((m) => m.starred).length;
 
   return (
     <div className={`flex flex-col lg:flex-row min-h-screen bg-[#F9F7F7] dark:bg-[#08170d] text-[#133020] dark:text-[#eff7ed] font-sans ${isResizing ? "select-none cursor-col-resize" : ""}`}>
@@ -405,60 +410,70 @@ export default function InternalMail() {
       {/* Main Mail Workspace */}
       <main className="flex-1 flex h-[calc(100vh-69px)] lg:h-screen overflow-hidden w-full">
         
-        {/* Left Message List Pane */}
+        {/* Left Message List Pane (Background color unified with Applicants!) */}
         <section 
           ref={leftPaneRef}
           style={{ "--list-width": `${listWidth}px` }}
-          className={`flex-col h-full border-r border-gray-200 dark:border-white/10 bg-white dark:bg-[#08170d] overflow-hidden shrink-0 w-full lg:w-[var(--list-width)] lg:max-w-[calc(100%-380px)] ${
+          className={`flex-col h-full overflow-hidden shrink-0 w-full lg:w-[var(--list-width)] lg:max-w-[calc(100%-380px)] ${
             isDetailOpen && selectedMessage ? "hidden lg:flex" : "flex"
           }`}
         >
           <header className="p-4 sm:p-6 lg:p-8 pb-4 sm:pb-5 lg:pb-6 border-b border-gray-200 dark:border-white/10 bg-[#F9F7F7] dark:bg-[#08170d] shrink-0 z-10">
             <div className="flex items-center justify-between">
               <div>
-                <h1 className="text-3xl font-extrabold text-[#133020] dark:text-white tracking-tight">Internal Mail</h1>
-                <p className="text-gray-500 dark:text-white/60 text-sm mt-1">Secure communication · Lifewood Data Technology</p>
+                <h1 className="text-2xl sm:text-3xl font-extrabold text-[#133020] dark:text-white tracking-tight">Internal Mail</h1>
+                <p className="text-gray-500 dark:text-white/60 text-xs sm:text-sm mt-1">Secure communication · Lifewood Data Technology</p>
               </div>
-              <span className="rounded-full bg-[#FFB347] px-3 py-1 text-xs font-black text-[#133020] shadow-xs shrink-0 ml-2">
-                {unreadCount} unread
-              </span>
+              {/* Starred Section replacing unread text while maintaining exact orange colors! */}
+              <button
+                type="button"
+                onClick={() => setFilter(filter === 'Starred' ? 'All' : 'Starred')}
+                className="rounded-full bg-[#FFB347] hover:bg-[#FFC370] px-3 py-1 sm:px-3.5 sm:py-1.5 text-xs font-black text-[#133020] shadow-xs shrink-0 ml-2 transition cursor-pointer flex items-center gap-1.5"
+                title="Click to view Starred messages"
+              >
+                <Star size={13} className="fill-current" />
+                <span>{starredCount} Starred</span>
+              </button>
             </div>
 
-            {/* Search Bar */}
-            <div className="mt-3.5 flex h-10 items-center gap-2.5 rounded-xl bg-[#F9F7F7] dark:bg-white/10 px-3 text-gray-500 dark:text-white/60 border border-gray-200 dark:border-transparent focus-within:border-[#046241] dark:focus-within:border-[#FFC370] transition-colors">
-              <Search size={16} />
-              <input
-                type="text"
-                value={searchQuery}
-                onChange={(e) => setSearchQuery(e.target.value)}
-                placeholder="Search messages, applicants..."
-                className="w-full bg-transparent text-xs font-bold text-[#133020] dark:text-white placeholder:text-gray-400 dark:placeholder:text-white/40 outline-none"
-              />
-              {searchQuery && (
-                <button 
-                  onClick={() => setSearchQuery("")}
-                  className="text-gray-400 hover:text-[#133020] dark:hover:text-white cursor-pointer"
-                  type="button"
-                >
-                  <X size={14} />
-                </button>
-              )}
+            {/* Unified Search Bar matching Applicants design */}
+            <div className="mt-3.5 flex items-center justify-between bg-white dark:bg-[#133020] rounded-full border border-gray-200 dark:border-white/10 p-1 shadow-xs focus-within:border-[#046241] dark:focus-within:border-[#FFC370] focus-within:ring-2 focus-within:ring-[#046241]/20 dark:focus-within:ring-[#FFC370]/20 transition-all">
+              <div className="flex items-center gap-2 pl-3.5 flex-1 min-w-0">
+                <Search className="text-gray-400 dark:text-white/40 shrink-0" size={16} />
+                <input
+                  type="text"
+                  value={searchQuery}
+                  onChange={(e) => setSearchQuery(e.target.value)}
+                  placeholder="Search messages, applicants..."
+                  className="w-full bg-transparent text-xs sm:text-sm font-bold text-[#133020] dark:text-white placeholder:text-gray-400 dark:placeholder:text-white/40 outline-none truncate"
+                />
+                {searchQuery && (
+                  <button 
+                    onClick={() => setSearchQuery("")}
+                    className="text-gray-400 hover:text-[#133020] dark:hover:text-white cursor-pointer pr-2 shrink-0"
+                    type="button"
+                  >
+                    <X size={14} />
+                  </button>
+                )}
+              </div>
             </div>
 
-            {/* Filter Tabs */}
-            <div className="mt-3 grid grid-cols-4 gap-1 rounded-xl bg-[#F9F7F7] dark:bg-white/5 p-1">
-              {["All", "Urgent", "Important", "Not Urgent"].map((tab) => (
+            {/* Pillbox Cards Filter Area unified with Applicants */}
+            <div className="mt-3.5 flex items-center gap-1.5 flex-wrap">
+              {["All", "Urgent", "Important", "Follow-up", "Not Important", "Starred"].map((tab) => (
                 <button
                   key={tab}
                   onClick={() => setFilter(tab)}
-                  className={`rounded-lg py-1.5 text-[11px] font-extrabold transition-all cursor-pointer ${
+                  className={`px-3 py-1 rounded-full text-xs font-extrabold border transition-all cursor-pointer flex items-center gap-1 ${
                     filter === tab 
-                      ? "bg-[#046241] text-white shadow-xs" 
-                      : "text-gray-600 dark:text-white/70 hover:bg-[#f5eedb] dark:hover:bg-white/10"
+                      ? "bg-[#046241] text-white border-transparent shadow-xs dark:bg-[#FFC370] dark:text-[#133020]" 
+                      : "bg-white/80 dark:bg-white/10 text-gray-700 dark:text-white/80 border-gray-200 dark:border-transparent hover:bg-white dark:hover:bg-white/20 hover:text-[#133020] dark:hover:text-white"
                   }`}
                   type="button"
                 >
-                  {tab}
+                  {tab === "Starred" && <Star size={12} className={filter === tab ? "fill-current" : "text-[#FFB347] fill-current"} />}
+                  <span>{tab}</span>
                 </button>
               ))}
             </div>
@@ -550,23 +565,23 @@ export default function InternalMail() {
           <div className="w-0.5 h-10 rounded-full bg-gray-300 dark:bg-white/20 group-hover:bg-white dark:group-hover:bg-[#133020] transition-colors" />
         </div>
 
-        {/* Right Message Detail Pane */}
-        <section className={`flex-1 w-full flex-col h-full bg-[#F9F7F7] dark:bg-[#08170d] overflow-y-auto min-w-0 ${
+        {/* Right Message Detail Pane (Background color & borders unified with Applicants!) */}
+        <section className={`flex-1 w-full flex-col h-full bg-white dark:bg-[#133020] border-l border-gray-200 dark:border-white/10 shadow-xl overflow-hidden min-w-0 ${
           isDetailOpen && selectedMessage ? "flex" : "hidden lg:flex"
         }`}>
           {selectedMessage && isDetailOpen ? (
             <>
-              {/* Functional Toolbar */}
-              <div className="flex h-14 items-center justify-between border-b border-gray-200 dark:border-white/10 bg-white dark:bg-[#08170d] px-6 shrink-0 sticky top-0 z-10">
-                <div className="flex gap-2 text-gray-500 dark:text-white/60">
+              {/* Unified Design Header Toolbar for Sidebar */}
+              <div className="flex h-14 items-center justify-between border-b border-gray-200 dark:border-white/10 bg-white dark:bg-[#133020] px-6 shrink-0 sticky top-0 z-20 gap-4 overflow-x-auto">
+                <div className="flex items-center gap-2 text-gray-500 dark:text-white/60 shrink-0">
                   <button 
                     onClick={() => setIsDetailOpen(false)}
-                    title="Back to message list" 
+                    title="Back to messages list" 
                     className="lg:hidden p-2 rounded-lg hover:bg-gray-100 dark:hover:bg-white/10 hover:text-[#133020] dark:hover:text-white transition cursor-pointer flex items-center gap-1.5 text-xs font-extrabold bg-gray-100 dark:bg-white/10 px-3 mr-2 text-[#133020] dark:text-white" 
                     type="button"
                   >
                     <ChevronLeft size={18} />
-                    <span>Back to Messages</span>
+                    <span>Back</span>
                   </button>
                   <button 
                     onClick={handlePrevMessage}
@@ -584,24 +599,30 @@ export default function InternalMail() {
                   >
                     <ArrowRight size={18} />
                   </button>
-                  <button 
+
+                  <div className="h-4 w-[1px] bg-gray-200 dark:bg-white/10 mx-1" />
+
+                  {/* Archive and Delete Buttons in Upper Header */}
+                  <button
+                    type="button"
                     onClick={handleArchive}
-                    title="Archive Message to Lifewood Cold Storage" 
-                    className="p-2 rounded-lg hover:bg-gray-100 dark:hover:bg-white/10 hover:text-[#046241] dark:hover:text-[#FFC370] transition cursor-pointer" 
-                    type="button"
+                    title="Archive Message"
+                    className="px-3 py-1.5 rounded-lg bg-gray-100 hover:bg-gray-200 dark:bg-white/10 dark:hover:bg-white/20 text-[#133020] dark:text-white text-xs font-bold flex items-center gap-1.5 transition cursor-pointer border border-gray-200 dark:border-white/10 shadow-xs"
                   >
-                    <Archive size={18} />
+                    <Archive size={14} />
+                    <span>Archive</span>
                   </button>
-                  <button 
-                    onClick={handleDelete}
-                    title="Delete Message" 
-                    className="p-2 rounded-lg hover:bg-gray-100 dark:hover:bg-white/10 hover:text-red-600 dark:hover:text-red-400 transition cursor-pointer" 
+                  <button
                     type="button"
+                    onClick={handleDelete}
+                    title="Delete Message"
+                    className="px-3 py-1.5 rounded-lg bg-red-50 hover:bg-red-100 dark:bg-red-500/20 dark:hover:bg-red-500/30 text-red-600 dark:text-red-200 hover:text-red-700 dark:hover:text-white border border-red-200 dark:border-red-500/30 text-xs font-bold flex items-center gap-1.5 transition cursor-pointer shadow-xs"
                   >
-                    <Trash2 size={18} />
+                    <Trash2 size={14} />
+                    <span>Delete</span>
                   </button>
                 </div>
-                <div className="flex items-center gap-3">
+                <div className="flex items-center gap-3 shrink-0">
                   <button 
                     onClick={() => handleToggleStar(selectedMessage.id)}
                     title={selectedMessage.starred ? "Remove Star" : "Star Message"}
@@ -625,9 +646,42 @@ export default function InternalMail() {
                 </div>
               </div>
 
+              {/* Scrollable Right Sidebar Body */}
+              <div className="overflow-y-auto flex-1">
+
+                {/* 1. Dark Green Top Header Card (Unified with Applicants sidebar view header style!) */}
+                <div className="bg-[#0c1f14] dark:bg-black/40 text-white rounded-2xl m-4 p-5 border border-emerald-500/20 shadow-md">
+                  <div className="flex items-center gap-3.5 min-w-0">
+                    <span 
+                      className="grid size-11 place-items-center rounded-full text-sm font-black text-white shadow-md shrink-0 ring-2 ring-emerald-400/30" 
+                      style={{ background: selectedMessage.color }}
+                    >
+                      {selectedMessage.initials}
+                    </span>
+                    <div className="min-w-0 flex-1">
+                      <h3 className="text-base font-bold text-white truncate">
+                        {selectedMessage.subject}
+                      </h3>
+                      <p className="text-xs text-emerald-200/60 mt-0.5 truncate">
+                        {selectedMessage.sender} · {selectedMessage.role} · {selectedMessage.time} ago
+                      </p>
+                    </div>
+                  </div>
+
+                  {/* Badges Row inside Dark Card */}
+                  <div className="flex items-center gap-1.5 flex-wrap mt-3.5">
+                    <Badge type={selectedMessage.badgeType}>{selectedMessage.badge}</Badge>
+                    {selectedMessage.unread && (
+                      <span className="px-2 py-0.5 rounded text-[10px] font-bold bg-[#FFB347] text-[#133020] shadow-2xs">
+                        Unread
+                      </span>
+                    )}
+                  </div>
+                </div>
+
               {/* Feedback Toast */}
               {showToast && (
-                <div className="mx-6 mt-4 p-3 rounded-xl bg-[#046241] text-white flex items-center justify-between shadow-lg animate-fade-in shrink-0">
+                <div className="mx-6 mt-2 p-3 rounded-xl bg-[#046241] text-white flex items-center justify-between shadow-lg animate-fade-in shrink-0">
                   <div className="flex items-center gap-2.5 text-xs font-bold">
                     <CheckCircle2 size={18} className="text-[#FFC370]" />
                     <span>{toastMsg}</span>
@@ -638,27 +692,6 @@ export default function InternalMail() {
 
               {/* Message Content */}
               <article className="p-6 md:p-8 flex-1 flex flex-col max-w-4xl mx-auto w-full">
-                <h2 className="text-2xl md:text-3xl font-extrabold text-[#133020] dark:text-white tracking-tight">
-                  {selectedMessage.subject}
-                </h2>
-
-                {/* Sender Info Card (Standardized with Dashboard cards) */}
-                <section className="mt-6 grid gap-4 rounded-2xl border border-gray-200 dark:border-white/10 bg-white dark:bg-[#133020] p-5 shadow-xs sm:grid-cols-[48px_1fr_auto] sm:items-center">
-                  <span 
-                    className="grid size-12 place-items-center rounded-full text-sm font-black text-white shadow-sm shrink-0" 
-                    style={{ background: selectedMessage.color }}
-                  >
-                    {selectedMessage.initials}
-                  </span>
-                  <div>
-                    <strong className="block text-base font-extrabold text-[#133020] dark:text-white">{selectedMessage.sender}</strong>
-                    <span className="text-xs font-medium text-gray-500 dark:text-white/60">{selectedMessage.role} · Lifewood HR</span>
-                  </div>
-                  <div className="grid gap-1.5 sm:justify-items-end">
-                    <Badge type={selectedMessage.badgeType}>{selectedMessage.badge}</Badge>
-                    <time className="text-xs font-bold text-gray-400 dark:text-white/50">{selectedMessage.time} ago</time>
-                  </div>
-                </section>
 
                 {/* AI Summary Banner */}
                 <div className="mt-6 rounded-2xl border border-[#FFC370]/50 bg-[#f5eedb] dark:bg-[#133020]/90 p-4.5 flex items-start gap-3.5 shadow-xs">
@@ -738,6 +771,7 @@ export default function InternalMail() {
                   </div>
                 </section>
               </article>
+              </div>
             </>
           ) : (
             /* Clean Empty State when No Message is Selected or X was clicked */

@@ -9,7 +9,6 @@ import {
   FileText, 
   Send, 
   Paperclip, 
-  Sparkles, 
   X, 
   Archive, 
   Briefcase, 
@@ -24,7 +23,9 @@ import {
   Reply,
   AlignLeft,
   Hash,
-  ArrowLeft
+  ArrowLeft,
+  ArrowRight,
+  ChevronLeft
 } from 'lucide-react';
 import Sidebar from '../components/Sidebar';
 import ChatbotAssistant from '../components/ChatbotAssistant';
@@ -34,6 +35,12 @@ const logDatabaseError = (action, error) => {
   if (error) {
     console.warn(`${action}:`, error.message || error);
   }
+};
+
+const normalizeApplicantStatus = (status) => {
+  const normalized = String(status || '').trim().toLowerCase();
+  if (!normalized || normalized === 'new') return 'pending';
+  return normalized;
 };
 
 // Default initial data matching exact counts: 8 Total (3 Interns, 5 Regular), 4 Accepted, 2 Rejected, 2 Pending
@@ -291,7 +298,7 @@ export default function Applicants() {
           country: item.country || 'International',
           position: item.position || item.role || 'General Application',
           type: item.type || 'regular',
-          status: item.status || 'pending',
+          status: normalizeApplicantStatus(item.status),
           matchScore: item.match_score || item.score || 75,
           urgent: item.urgent || false,
           education: item.education || 'University Degree',
@@ -326,17 +333,19 @@ export default function Applicants() {
 
   // Update applicant status (Accept, Reject, Shortlist, Archive, etc.)
   const handleStatusChange = async (id, newStatus) => {
+    const nextStatus = normalizeApplicantStatus(newStatus);
+
     setApplicants(prev => prev.map(app => 
-      app.id === id ? { ...app, status: newStatus } : app
+      app.id === id ? { ...app, status: nextStatus } : app
     ));
 
     try {
       if (!supabase) return;
 
-      const { error } = await supabase.from('applicants').update({ status: newStatus }).eq('id', id);
+      const { error } = await supabase.from('applicants').update({ status: nextStatus }).eq('id', id);
       logDatabaseError('Applicant status update failed', error);
     } catch (err) {
-      logDatabaseError(`Applicant status update failed for ${id} -> ${newStatus}`, err);
+      logDatabaseError(`Applicant status update failed for ${id} -> ${nextStatus}`, err);
     }
   };
 
@@ -414,9 +423,9 @@ export default function Applicants() {
   // ==========================================
   const stats = useMemo(() => {
     const total = applicants.length;
-    const accepted = applicants.filter(a => a.status === 'accepted').length;
-    const rejected = applicants.filter(a => a.status === 'rejected').length;
-    const pending = applicants.filter(a => a.status === 'pending').length;
+    const accepted = applicants.filter(a => normalizeApplicantStatus(a.status) === 'accepted').length;
+    const rejected = applicants.filter(a => normalizeApplicantStatus(a.status) === 'rejected').length;
+    const pending = applicants.filter(a => normalizeApplicantStatus(a.status) === 'pending').length;
     const totalScore = applicants.reduce((acc, curr) => acc + (curr.matchScore || 0), 0);
     const avgScore = total > 0 ? Math.round(totalScore / total) : 0;
     const internCount = applicants.filter(a => a.type === 'intern').length;
@@ -434,7 +443,7 @@ export default function Applicants() {
         app.skills.some(s => s.toLowerCase().includes(searchQuery.toLowerCase()));
 
       const matchesType = typeFilter === 'all' || app.type === typeFilter;
-      const matchesStatus = statusFilter === 'all' || app.status === statusFilter;
+      const matchesStatus = statusFilter === 'all' || normalizeApplicantStatus(app.status) === statusFilter;
 
       return matchesSearch && matchesType && matchesStatus;
     });
@@ -451,7 +460,7 @@ export default function Applicants() {
 
   // Status Badge Styling Helper
   const getStatusBadge = (status) => {
-    switch (status) {
+    switch (normalizeApplicantStatus(status)) {
       case 'accepted':
         return { label: 'Accepted', bg: 'bg-[#046241]/10 text-[#046241] dark:bg-[#046241]/30 dark:text-[#FFC370] border-[#046241]/20', icon: CheckCircle2 };
       case 'rejected':
@@ -463,6 +472,21 @@ export default function Applicants() {
       default:
         return { label: 'Pending', bg: 'bg-amber-100 text-amber-800 dark:bg-amber-950/50 dark:text-amber-300 border-amber-200 dark:border-amber-800/40', icon: Clock };
     }
+  };
+
+  const selectedStatusBadge = selectedApplicant ? getStatusBadge(selectedApplicant.status) : null;
+  const SelectedStatusIcon = selectedStatusBadge?.icon;
+  const selectedApplicantIndex = selectedApplicant
+    ? filteredApplicants.findIndex(app => app.id === selectedApplicant.id)
+    : -1;
+  const canNavigateApplicants = filteredApplicants.length > 1 && selectedApplicantIndex !== -1;
+
+  const selectAdjacentApplicant = (direction) => {
+    if (!canNavigateApplicants) return;
+
+    const nextIndex = (selectedApplicantIndex + direction + filteredApplicants.length) % filteredApplicants.length;
+    setSelectedId(filteredApplicants[nextIndex].id);
+    setIsDetailOpen(true);
   };
 
   return (
@@ -879,71 +903,85 @@ export default function Applicants() {
           }`}>
             {selectedApplicant && isDetailOpen ? (
               <>
-              
-              {/* 1. Top Action Icons Bar */}
-              <div className="flex items-center justify-between p-3.5 border-b border-gray-100 dark:border-white/10 text-gray-500 dark:text-white/60 shrink-0">
-                <div className="flex items-center gap-0.5">
-                  <button 
-                    type="button"
-                    onClick={() => setIsDetailOpen(false)}
-                    title="Back to applicant list" 
-                    className="lg:hidden p-2 rounded-lg hover:bg-gray-100 dark:hover:bg-white/10 hover:text-[#133020] dark:hover:text-white transition cursor-pointer flex items-center gap-1.5 text-xs font-extrabold mr-2 bg-gray-100 dark:bg-white/10 px-3 text-[#133020] dark:text-white shrink-0" 
-                  >
-                    <ArrowLeft size={16} />
-                    <span>Back to List</span>
-                  </button>
-                  <button 
-                    type="button"
-                    onClick={() => handleStatusChange(selectedApplicant.id, 'archived')}
-                    title="Archive"
-                      className="p-2 hover:bg-gray-100 dark:hover:bg-white/10 rounded-lg hover:text-[#133020] dark:hover:text-white transition cursor-pointer"
+                {/* Unified Design Header Toolbar for Sidebar (without Star button as requested!) */}
+                <div className="flex h-14 items-center justify-between border-b border-gray-200 dark:border-white/10 bg-white dark:bg-[#133020] px-6 shrink-0 sticky top-0 z-20 gap-4 overflow-x-auto">
+                  <div className="flex items-center gap-2 text-gray-500 dark:text-white/60 shrink-0">
+                    <button 
+                      onClick={() => setIsDetailOpen(false)}
+                      title="Back to applicants list" 
+                      className="lg:hidden p-2 rounded-lg hover:bg-gray-100 dark:hover:bg-white/10 hover:text-[#133020] dark:hover:text-white transition cursor-pointer flex items-center gap-1.5 text-xs font-extrabold bg-gray-100 dark:bg-white/10 px-3 mr-2 text-[#133020] dark:text-white" 
+                      type="button"
                     >
-                      <Archive size={16} />
+                      <ChevronLeft size={18} />
+                      <span>Back</span>
                     </button>
                     <button 
+                      onClick={() => selectAdjacentApplicant(-1)}
+                      title="Previous Applicant (Arrow Left)" 
+                      className="p-2 rounded-lg hover:bg-gray-100 dark:hover:bg-white/10 hover:text-[#133020] dark:hover:text-white transition cursor-pointer" 
+                      type="button"
+                    >
+                      <ArrowLeft size={18} />
+                    </button>
+                    <button 
+                      onClick={() => selectAdjacentApplicant(1)}
+                      title="Next Applicant (Arrow Right)" 
+                      className="p-2 rounded-lg hover:bg-gray-100 dark:hover:bg-white/10 hover:text-[#133020] dark:hover:text-white transition cursor-pointer" 
+                      type="button"
+                    >
+                      <ArrowRight size={18} />
+                    </button>
+
+                    <div className="h-4 w-[1px] bg-gray-200 dark:bg-white/10 mx-1" />
+
+                    {/* Archive and Delete Buttons with Card Design in Upper Header */}
+                    <button
+                      type="button"
+                      onClick={() => handleStatusChange(selectedApplicant.id, 'archived')}
+                      title="Archive Applicant"
+                      className="px-3 py-1.5 rounded-lg bg-gray-100 hover:bg-gray-200 dark:bg-white/10 dark:hover:bg-white/20 text-[#133020] dark:text-white text-xs font-bold flex items-center gap-1.5 transition cursor-pointer border border-gray-200 dark:border-white/10 shadow-xs"
+                    >
+                      <Archive size={14} />
+                      <span>Archive</span>
+                    </button>
+                    <button
                       type="button"
                       onClick={() => handleDeleteApplicant(selectedApplicant.id)}
-                      title="Delete / Remove"
-                      className="p-2 hover:bg-gray-100 dark:hover:bg-white/10 rounded-lg hover:text-red-600 transition cursor-pointer"
+                      title="Delete / Remove Applicant"
+                      className="px-3 py-1.5 rounded-lg bg-red-50 hover:bg-red-100 dark:bg-red-500/20 dark:hover:bg-red-500/30 text-red-600 dark:text-red-200 hover:text-red-700 dark:hover:text-white border border-red-200 dark:border-red-500/30 text-xs font-bold flex items-center gap-1.5 transition cursor-pointer shadow-xs"
                     >
-                      <Trash2 size={16} />
+                      <Trash2 size={14} />
+                      <span>Delete</span>
                     </button>
                   </div>
-
-                  <button
-                    type="button"
-                    onClick={() => { setIsDetailOpen(false); setSelectedId(null); }}
-                    title="Close Details"
-                    className="p-2 hover:bg-gray-100 dark:hover:bg-white/10 rounded-lg hover:text-[#133020] dark:hover:text-white transition cursor-pointer"
-                  >
-                    <X size={18} />
-                  </button>
+                  <div className="flex items-center gap-3 shrink-0">
+                    <button 
+                      onClick={() => { setIsDetailOpen(false); setSelectedId(null); }}
+                      title="Close applicant view (X)"
+                      className="p-2 rounded-lg text-gray-400 hover:text-red-500 hover:bg-red-50 dark:hover:bg-red-950/40 transition cursor-pointer" 
+                      type="button"
+                    >
+                      <X size={18} />
+                    </button>
+                  </div>
                 </div>
 
-                {/* Scrollable Right Sidebar Body */}
+                {/* Scrollable Right Sidebar Body (Card acts as the sidetab heading!) */}
                 <div className="overflow-y-auto flex-1">
-                  
-                  {/* 2. Dark Green Top Card (Exact match to screenshot!) */}
-                  <div className="bg-[#0c1f14] dark:bg-black/40 text-white rounded-2xl m-4 p-5 border border-emerald-500/20 shadow-md">
-                    <div className="flex items-start justify-between gap-3">
-                      {/* Avatar & Title Info */}
-                      <div className="flex items-center gap-3.5 min-w-0 flex-1">
-                        <div className="size-11 rounded-full bg-[#046241] text-white font-black text-sm flex items-center justify-center shrink-0 ring-2 ring-emerald-400/30 shadow-md">
-                          {selectedApplicant.initials}
-                        </div>
-                        <div className="min-w-0 flex-1">
-                          <h3 className="text-base font-bold text-white truncate">
-                            Application for {selectedApplicant.position}
-                          </h3>
-                          <p className="text-xs text-emerald-200/60 mt-0.5 truncate">
-                            {selectedApplicant.name} · {selectedApplicant.timeAgo}
-                          </p>
-                        </div>
-                      </div>
 
-                      {/* Glowing Match Score Ring */}
-                      <div className="size-12 rounded-full border-2 border-emerald-400 bg-emerald-950/40 flex items-center justify-center text-emerald-400 font-black text-base shadow-lg shadow-emerald-500/20 shrink-0">
-                        {selectedApplicant.matchScore}
+                  {/* 1. Dark Green Top Header Card */}
+                  <div className="bg-[#0c1f14] dark:bg-black/40 text-white rounded-2xl m-4 p-5 border border-emerald-500/20 shadow-md">
+                    <div className="flex items-center gap-3.5 min-w-0">
+                      <div className="size-11 rounded-full bg-[#046241] text-white font-black text-sm flex items-center justify-center shrink-0 ring-2 ring-emerald-400/30 shadow-md">
+                        {selectedApplicant.initials}
+                      </div>
+                      <div className="min-w-0 flex-1">
+                        <h3 className="text-base font-bold text-white truncate">
+                          Application for {selectedApplicant.position}
+                        </h3>
+                        <p className="text-xs text-emerald-200/60 mt-0.5 truncate">
+                          {selectedApplicant.name} · {selectedApplicant.timeAgo}
+                        </p>
                       </div>
                     </div>
 
@@ -957,24 +995,22 @@ export default function Applicants() {
                       <span className="px-2 py-0.5 rounded text-[10px] font-bold bg-emerald-900/60 text-emerald-300 border border-emerald-700/50 capitalize">
                         {selectedApplicant.type}
                       </span>
-                      <span className={`px-2 py-0.5 rounded text-[10px] font-bold flex items-center gap-1 capitalize ${
-                        selectedApplicant.status === 'accepted' ? 'bg-emerald-600 text-white' :
-                        selectedApplicant.status === 'rejected' ? 'bg-red-500 text-white' :
-                        'bg-amber-600 text-white'
-                      }`}>
-                        <Check size={11} />
-                        <span>{selectedApplicant.status}</span>
+                      <span className={`px-2 py-0.5 rounded text-[10px] font-bold border flex items-center gap-1 ${selectedStatusBadge?.bg || ''}`}>
+                        {SelectedStatusIcon && <SelectedStatusIcon size={11} />}
+                        <span>{selectedStatusBadge?.label || 'Pending'}</span>
                       </span>
                     </div>
 
-                    {/* ✨ AI Summary Box */}
-                    <div className="mt-3.5 pt-3.5 border-t border-white/10 flex items-start gap-2 text-xs text-emerald-100/80 leading-relaxed">
-                      <Sparkles size={15} className="text-amber-400 shrink-0 mt-0.5" />
-                      <span>{selectedApplicant.summary}</span>
+                    {/* Glowing Match Score at Bottom Right */}
+                    <div className="mt-4 pt-4 border-t border-white/10 flex items-center justify-end gap-2">
+                      <span className="text-[10px] uppercase font-bold text-emerald-300/70 tracking-wider">Match Score</span>
+                      <div className="size-10 rounded-full border-2 border-emerald-400 bg-emerald-950/60 flex items-center justify-center text-emerald-400 font-black text-sm shadow-lg shadow-emerald-500/20 shrink-0" title={`Match Score: ${selectedApplicant.matchScore}%`}>
+                        {selectedApplicant.matchScore}
+                      </div>
                     </div>
                   </div>
 
-                  {/* 3. 1x3 Metadata Grid with borders side-by-side (Position, Work Experience, Education) */}
+                  {/* 2. 1x3 Metadata Grid with borders side-by-side (Position, Work Experience, Education) */}
                   <div className="grid grid-cols-3 border-y border-gray-200 dark:border-white/10 text-xs">
                     <div className="p-4 border-r border-gray-200 dark:border-white/10 overflow-hidden">
                       <span className="flex items-center gap-1.5 text-[10px] font-bold uppercase tracking-wider text-gray-400 dark:text-white/40 mb-1 truncate">

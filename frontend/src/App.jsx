@@ -4,6 +4,7 @@ import ResetPassword from './pages/ResetPassword'
 import Dashboard from './pages/Dashboard'
 import InternalMail from './pages/InternalMail'
 import Applicants from './pages/Applicants'
+import ReportsPage from './pages/Reports'; // Or wherever your file is located
 import ProtectedRoute from './components/ProtectedRoute'
 import { AuthProvider } from './auth/AuthProvider'
 
@@ -42,6 +43,14 @@ function App() {
             element={
               <ProtectedRoute>
                 <Applicants />
+              </ProtectedRoute>
+            }
+          />
+          <Route
+            path="/dashboard/reports"
+            element={
+              <ProtectedRoute>
+                <ReportsPage />
               </ProtectedRoute>
             }
           />

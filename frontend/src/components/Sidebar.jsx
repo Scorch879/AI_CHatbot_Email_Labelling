@@ -17,7 +17,7 @@ const navItems = [
   { label: 'Dashboard', icon: Grid2X2, path: '/dashboard' },
   { label: 'Internal Mail', icon: Inbox, path: '/dashboard/internal-mail' },
   { label: 'Applicants', icon: Users, path: '/dashboard/applicants' },
-  { label: 'Reports', icon: BriefcaseBusiness, path: '/dashboard' },
+  { label: 'Reports', icon: BriefcaseBusiness, path: '/dashboard/reports' },
   { label: 'Settings', icon: Settings, path: '/dashboard' },
 ];
 

@@ -3,6 +3,7 @@ import AuthForm from './components/AuthForm'
 import ResetPassword from './pages/ResetPassword'
 import Dashboard from './pages/Dashboard'
 import InternalMail from './pages/InternalMail'
+import Applicants from './pages/Applicants'
 import ProtectedRoute from './components/ProtectedRoute'
 
 function App() {
@@ -34,6 +35,14 @@ function App() {
             </ProtectedRoute>
           } 
         />
+        <Route 
+          path="/dashboard/applicants" 
+          element={
+            <ProtectedRoute>
+              <Applicants />
+            </ProtectedRoute>
+          } 
+        />
         <Route path="*" element={<Navigate to="/" replace />} />
       </Routes>
     </Router>
@@ -41,3 +50,4 @@ function App() {
 }
 
 export default App
+

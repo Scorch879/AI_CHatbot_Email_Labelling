@@ -117,7 +117,7 @@ const initialMessages = [
 ];
 
 const badgeStyles = {
-  urgent: "bg-red-100 text-red-700 dark:bg-red-950/80 dark:text-red-300 ring-red-500/30",
+  urgent: "bg-[#FFB347] text-[#133020] dark:bg-[#FFC370] dark:text-[#133020] ring-[#FFB347]/50 font-black",
   important: "bg-amber-100 text-amber-800 dark:bg-yellow-950/80 dark:text-yellow-300 ring-amber-500/30",
   info: "bg-sky-100 text-sky-800 dark:bg-sky-950/80 dark:text-sky-300 ring-sky-500/30",
   muted: "bg-gray-100 text-gray-700 dark:bg-white/10 dark:text-white/60 ring-gray-400/20",
@@ -293,12 +293,13 @@ export default function InternalMail() {
             isDetailOpen && selectedMessage ? "hidden md:flex" : "flex"
           }`}
         >
-          <header className="p-4 border-b border-gray-100 dark:border-white/10 shrink-0">
+          <header className="p-4 sm:p-6 lg:p-8 pb-4 sm:pb-5 lg:pb-6 border-b border-gray-200 dark:border-white/10 bg-[#F9F7F7] dark:bg-[#08170d] shrink-0 z-10">
             <div className="flex items-center justify-between">
               <div>
-                <h1 className="text-2xl font-black text-[#133020] dark:text-white tracking-tight">Internal Mail</h1>
+                <h1 className="text-3xl font-extrabold text-[#133020] dark:text-white tracking-tight">Internal Mail</h1>
+                <p className="text-gray-500 dark:text-white/60 text-sm mt-1">Secure communication · Lifewood Data Technology</p>
               </div>
-              <span className="rounded-full bg-[#FFB347] px-3 py-1 text-xs font-black text-[#133020] shadow-xs">
+              <span className="rounded-full bg-[#FFB347] px-3 py-1 text-xs font-black text-[#133020] shadow-xs shrink-0 ml-2">
                 {unreadCount} unread
               </span>
             </div>
@@ -432,7 +433,7 @@ export default function InternalMail() {
         )}
 
         {/* Right Message Detail Pane */}
-        <section className={`flex-col h-full bg-[#F9F7F7] dark:bg-[#08170d] overflow-y-auto ${
+        <section className={`flex-1 w-full flex-col h-full bg-[#F9F7F7] dark:bg-[#08170d] overflow-y-auto ${
           isDetailOpen && selectedMessage ? "flex" : "hidden md:flex"
         }`}>
           {selectedMessage && isDetailOpen ? (
@@ -622,12 +623,12 @@ export default function InternalMail() {
             </>
           ) : (
             /* Clean Empty State when No Message is Selected or X was clicked */
-            <div className="flex-1 flex flex-col items-center justify-center p-8 text-center animate-fade-in">
+            <div className="flex-1 w-full h-full flex flex-col items-center justify-center p-8 text-center animate-fade-in mx-auto my-auto">
               <div className="p-5 rounded-full bg-white dark:bg-[#133020] border border-gray-200 dark:border-white/10 text-[#046241] dark:text-[#FFC370] mb-4 shadow-sm">
                 <Inbox size={44} />
               </div>
               <h3 className="text-xl font-black text-[#133020] dark:text-white">No Message Selected</h3>
-              <p className="mt-2 text-xs leading-6 text-gray-500 dark:text-white/60 max-w-md">
+              <p className="mt-2 text-xs leading-6 text-gray-500 dark:text-white/60 max-w-md mx-auto">
                 Select an email from the inbox list on the left to view encrypted message details, candidate screening scores, and AI content analysis.
               </p>
             </div>

@@ -56,31 +56,38 @@ const Dashboard = () => {
     <div className="flex min-h-screen bg-[#F9F7F7] dark:bg-[#08170d] transition-colors font-sans text-[#133020] dark:text-[#eff7ed]">
       <Sidebar activeTab="Dashboard" />
 
-      <main className="flex-1 p-4 sm:p-6 lg:p-8 overflow-y-auto max-w-7xl mx-auto w-full">
-        <div className="flex flex-col sm:flex-row sm:justify-between sm:items-center gap-4 mb-8">
-          <div>
-            <h1 className="text-3xl font-extrabold text-[#133020] dark:text-white tracking-tight">Dashboard</h1>
-            <p className="text-gray-500 dark:text-white/60 text-sm mt-1">Applicant analytics · Lifewood Data Technology</p>
+      <main className="flex-1 flex flex-col h-screen overflow-hidden w-full">
+        
+        {/* Sticky Header Row */}
+        <header className="p-4 sm:p-6 lg:p-8 pb-4 sm:pb-5 lg:pb-6 border-b border-gray-200 dark:border-white/10 bg-[#F9F7F7] dark:bg-[#08170d] shrink-0 z-10">
+          <div className="max-w-7xl mx-auto w-full flex flex-col sm:flex-row sm:justify-between sm:items-center gap-4">
+            <div>
+              <h1 className="text-3xl font-extrabold text-[#133020] dark:text-white tracking-tight">Dashboard</h1>
+              <p className="text-gray-500 dark:text-white/60 text-sm mt-1">Applicant analytics · Lifewood Data Technology</p>
+            </div>
+            
+            <div className="flex bg-white dark:bg-[#133020] p-1 rounded-full border border-gray-200 dark:border-white/10 shadow-xs self-start sm:self-auto">
+              {['Yearly', 'Monthly', 'Weekly'].map((option) => (
+                <button 
+                  key={option} 
+                  onClick={() => setFilter(option)} 
+                  className={`px-5 py-1.5 rounded-full text-xs font-bold transition-all cursor-pointer ${
+                    filter === option 
+                      ? 'bg-[#046241] text-white shadow-md shadow-[#046241]/20' 
+                      : 'text-[#133020]/70 dark:text-white/70 hover:bg-[#f5eedb] dark:hover:bg-white/10 hover:text-[#133020] dark:hover:text-white'
+                  }`}
+                >
+                  {option}
+                </button>
+              ))}
+            </div>
           </div>
-          
-          <div className="flex bg-white dark:bg-[#133020] p-1 rounded-full border border-gray-200 dark:border-white/10 shadow-xs self-start sm:self-auto">
-            {['Yearly', 'Monthly', 'Weekly'].map((option) => (
-              <button 
-                key={option} 
-                onClick={() => setFilter(option)} 
-                className={`px-5 py-1.5 rounded-full text-xs font-bold transition-all cursor-pointer ${
-                  filter === option 
-                    ? 'bg-[#046241] text-white shadow-md shadow-[#046241]/20' 
-                    : 'text-[#133020]/70 dark:text-white/70 hover:bg-[#f5eedb] dark:hover:bg-white/10 hover:text-[#133020] dark:hover:text-white'
-                }`}
-              >
-                {option}
-              </button>
-            ))}
-          </div>
-        </div>
+        </header>
 
-        {/* Analytics Stats Grid */}
+        {/* Scrollable Dashboard Content */}
+        <div className="flex-1 overflow-y-auto p-4 sm:p-6 lg:p-8 pt-4 sm:pt-6 lg:pt-6 w-full">
+          <div className="max-w-7xl mx-auto w-full space-y-8">
+            {/* Analytics Stats Grid */}
         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 sm:gap-6 mb-8">
           {[ 
             { l: 'Total Applicants', v: stats.total, i: <Users/>, c: 'text-[#046241] dark:text-[#FFC370]', b: 'bg-[#f5eedb] dark:bg-[#046241]/20' }, 
@@ -133,8 +140,9 @@ const Dashboard = () => {
             )}
           </div>
         </div>
-
-        <ChatbotAssistant />
+      </div>
+      </div>
+      <ChatbotAssistant />
       </main>
     </div>
   );

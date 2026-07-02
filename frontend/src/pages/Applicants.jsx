@@ -18,21 +18,23 @@ import {
   Award, 
   Clock, 
   Star,
-  ChevronRight,
   MessageSquare,
   Check,
   Trash2,
-  Share2,
-  MoreHorizontal,
   Reply,
-  ReplyAll,
-  Tag,
   AlignLeft,
-  Hash
+  Hash,
+  ArrowLeft
 } from 'lucide-react';
 import Sidebar from '../components/Sidebar';
 import ChatbotAssistant from '../components/ChatbotAssistant';
 import { supabase } from '../supabaseClient';
+
+const logDatabaseError = (action, error) => {
+  if (error) {
+    console.warn(`${action}:`, error.message || error);
+  }
+};
 
 // Default initial data matching exact counts: 8 Total (3 Interns, 5 Regular), 4 Accepted, 2 Rejected, 2 Pending
 const INITIAL_APPLICANTS = [
@@ -203,19 +205,39 @@ export default function Applicants() {
   // EXPOSED DATABASE & STATE VARIABLES
   // ==========================================
   const [applicants, setApplicants] = useState(INITIAL_APPLICANTS);
-  const [selectedId, setSelectedId] = useState('1'); // Default select first applicant
+  const [selectedId, setSelectedId] = useState(() => localStorage.getItem('lifemail_applicants_selected_id') || null);
   const [searchQuery, setSearchQuery] = useState('');
   const [typeFilter, setTypeFilter] = useState('all'); // 'all' | 'intern' | 'regular'
-  const [statusFilter, setStatusFilter] = useState('all'); // 'all' | 'accepted' | 'rejected' | 'pending' | 'shortlisted' | 'archived'
+  const [statusFilter, setStatusFilter] = useState('all'); // 'all' | 'accepted' | 'rejected' | 'pending' | 'archived'
   const [replyText, setReplyText] = useState('');
   const [isFilterMenuOpen, setIsFilterMenuOpen] = useState(false);
   const [isLoadingDb, setIsLoadingDb] = useState(false);
+  const [isDetailOpen, setIsDetailOpen] = useState(() => localStorage.getItem('lifemail_applicants_detail_open') === 'true');
 
   // Resizing state for Left Workspace Pane
-  const [listWidth, setListWidth] = useState(680);
+  const [listWidth, setListWidth] = useState(() => {
+    const saved = localStorage.getItem('lifemail_applicants_list_width');
+    return saved ? parseInt(saved, 10) : 500;
+  });
   const [isResizing, setIsResizing] = useState(false);
   const leftPaneRef = useRef(null);
   const isResizingRef = useRef(false);
+
+  useEffect(() => {
+    if (selectedId) {
+      localStorage.setItem('lifemail_applicants_selected_id', selectedId);
+    } else {
+      localStorage.removeItem('lifemail_applicants_selected_id');
+    }
+  }, [selectedId]);
+
+  useEffect(() => {
+    localStorage.setItem('lifemail_applicants_detail_open', isDetailOpen ? 'true' : 'false');
+  }, [isDetailOpen]);
+
+  useEffect(() => {
+    localStorage.setItem('lifemail_applicants_list_width', listWidth);
+  }, [listWidth]);
 
   const startResizing = (e) => {
     e.preventDefault();
@@ -224,10 +246,15 @@ export default function Applicants() {
     const startX = e.clientX;
     const startWidth = leftPaneRef.current ? leftPaneRef.current.getBoundingClientRect().width : listWidth;
 
+    const container = leftPaneRef.current?.parentElement;
+    const containerWidth = container ? container.getBoundingClientRect().width : window.innerWidth - 256;
+    const maxAllowedWidth = Math.min(1000, Math.max(380, containerWidth - 380));
+    const minAllowedWidth = 340;
+
     const handleMouseMove = (moveEvent) => {
       if (!isResizingRef.current) return;
       const deltaX = moveEvent.clientX - startX;
-      const newWidth = Math.min(Math.max(startWidth + deltaX, 380), 1150);
+      const newWidth = Math.min(Math.max(startWidth + deltaX, minAllowedWidth), maxAllowedWidth);
       setListWidth(newWidth);
     };
 
@@ -247,33 +274,45 @@ export default function Applicants() {
     const fetchFromDatabase = async () => {
       setIsLoadingDb(true);
       try {
+        if (!supabase) return;
+
         const { data, error } = await supabase.from('applicants').select('*');
-        if (!error && data && data.length > 0) {
-          const mapped = data.map(item => ({
-            id: item.id?.toString() || Math.random().toString(),
-            name: item.name || item.full_name || 'Unnamed Applicant',
-            initials: item.initials || (item.name ? item.name.split(' ').map(n=>n[0]).join('') : 'AP'),
-            country: item.country || 'International',
-            position: item.position || item.role || 'General Application',
-            type: item.type || 'regular',
-            status: item.status || 'pending',
-            matchScore: item.match_score || item.score || 75,
-            urgent: item.urgent || false,
-            education: item.education || 'University Degree',
-            experience: item.experience || 'Prior industry experience',
-            skills: Array.isArray(item.skills) ? item.skills : ['Python', 'SQL', 'Communication'],
-            summary: item.summary || 'Applicant record synchronized from Supabase database.',
-            message: item.message || item.cover_letter || 'No cover letter attached.',
-            timeAgo: item.created_at ? new Date(item.created_at).toLocaleDateString() : 'Recently',
-            resumeName: item.resume_name || 'applicant_resume.pdf',
-            resumeSize: item.resume_size || '1.0 MB',
-            replies: item.replies || []
-          }));
-          setApplicants(mapped);
-          if (mapped.length > 0 && !selectedId) setSelectedId(mapped[0].id);
+        if (error) {
+          logDatabaseError('Applicant fetch failed', error);
+          return;
         }
+
+        if (!data || data.length === 0) return;
+
+        const mapped = data.map(item => ({
+          id: item.id?.toString() || crypto.randomUUID(),
+          name: item.name || item.full_name || 'Unnamed Applicant',
+          initials: item.initials || (item.name ? item.name.split(' ').map(n=>n[0]).join('') : 'AP'),
+          country: item.country || 'International',
+          position: item.position || item.role || 'General Application',
+          type: item.type || 'regular',
+          status: item.status || 'pending',
+          matchScore: item.match_score || item.score || 75,
+          urgent: item.urgent || false,
+          education: item.education || 'University Degree',
+          experience: item.experience || 'Prior industry experience',
+          skills: Array.isArray(item.skills) ? item.skills : ['Python', 'SQL', 'Communication'],
+          summary: item.summary || 'Applicant record synchronized from Supabase database.',
+          message: item.message || item.cover_letter || 'No cover letter attached.',
+          rawEmail: item.raw_email || (item.email_subject ? `From: ${item.email || item.name || 'Applicant'}\nSubject: ${item.email_subject}\nDate: ${item.email_date || item.created_at || 'Recent'}\n\n${item.message || item.cover_letter || ''}` : null),
+          timeAgo: item.created_at ? new Date(item.created_at).toLocaleDateString() : 'Recently',
+          resumeName: item.resume_name || 'applicant_resume.pdf',
+          resumeSize: item.resume_size || '1.0 MB',
+          replies: Array.isArray(item.replies) ? item.replies : []
+        }));
+        setApplicants(mapped);
+        setSelectedId(current =>
+          current && mapped.some(applicant => applicant.id === current)
+            ? current
+            : null
+        );
       } catch (err) {
-        console.info('Using default rich dataset (Supabase table not initialized yet):', err);
+        logDatabaseError('Using default applicant dataset', err);
       } finally {
         setIsLoadingDb(false);
       }
@@ -292,9 +331,12 @@ export default function Applicants() {
     ));
 
     try {
-      await supabase.from('applicants').update({ status: newStatus }).eq('id', id);
+      if (!supabase) return;
+
+      const { error } = await supabase.from('applicants').update({ status: newStatus }).eq('id', id);
+      logDatabaseError('Applicant status update failed', error);
     } catch (err) {
-      console.log('Database update logged for status change:', { id, newStatus });
+      logDatabaseError(`Applicant status update failed for ${id} -> ${newStatus}`, err);
     }
   };
 
@@ -309,9 +351,12 @@ export default function Applicants() {
     ));
 
     try {
-      await supabase.from('applicants').update({ urgent: newUrgent }).eq('id', id);
+      if (!supabase) return;
+
+      const { error } = await supabase.from('applicants').update({ urgent: newUrgent }).eq('id', id);
+      logDatabaseError('Applicant urgent update failed', error);
     } catch (err) {
-      console.log('Database update logged for urgent toggle:', { id, newUrgent });
+      logDatabaseError(`Applicant urgent update failed for ${id} -> ${newUrgent}`, err);
     }
   };
 
@@ -336,12 +381,15 @@ export default function Applicants() {
     setReplyText('');
 
     try {
+      if (!supabase) return;
+
       const target = applicants.find(a => a.id === id);
-      await supabase.from('applicants').update({ 
+      const { error } = await supabase.from('applicants').update({
         replies: [...(target?.replies || []), newReply] 
       }).eq('id', id);
+      logDatabaseError('Applicant reply update failed', error);
     } catch (err) {
-      console.log('Database update logged for new reply:', { id, reply: newReply });
+      logDatabaseError(`Applicant reply update failed for ${id}`, err);
     }
   };
 
@@ -352,9 +400,12 @@ export default function Applicants() {
     if (selectedId === id) setSelectedId(null);
 
     try {
-      await supabase.from('applicants').delete().eq('id', id);
+      if (!supabase) return;
+
+      const { error } = await supabase.from('applicants').delete().eq('id', id);
+      logDatabaseError('Applicant delete failed', error);
     } catch (err) {
-      console.log('Database delete logged:', id);
+      logDatabaseError(`Applicant delete failed for ${id}`, err);
     }
   };
 
@@ -365,7 +416,7 @@ export default function Applicants() {
     const total = applicants.length;
     const accepted = applicants.filter(a => a.status === 'accepted').length;
     const rejected = applicants.filter(a => a.status === 'rejected').length;
-    const pending = applicants.filter(a => a.status === 'pending' || a.status === 'shortlisted').length;
+    const pending = applicants.filter(a => a.status === 'pending').length;
     const totalScore = applicants.reduce((acc, curr) => acc + (curr.matchScore || 0), 0);
     const avgScore = total > 0 ? Math.round(totalScore / total) : 0;
     const internCount = applicants.filter(a => a.type === 'intern').length;
@@ -390,7 +441,12 @@ export default function Applicants() {
   }, [applicants, searchQuery, typeFilter, statusFilter]);
 
   const selectedApplicant = useMemo(() => {
-    return applicants.find(a => a.id === selectedId) || null;
+    const found = applicants.find(a => a.id === selectedId) || null;
+    if (!found) return null;
+    return {
+      ...found,
+      rawEmail: found.rawEmail || found.raw_email || `From: ${found.name} <${found.name.toLowerCase().replace(/\s+/g, '.')}@email.com>\nTo: careers@lifemail.tech\nSubject: Application for ${found.position} (${found.type})\nDate: ${new Date().toUTCString()}\nMIME-Version: 1.0\nContent-Type: text/plain; charset="UTF-8"\nX-Lifemail-Match-Score: ${found.matchScore}%\nX-Lifemail-AI-Confidence: 0.964\n\n${found.message}`
+    };
   }, [applicants, selectedId]);
 
   // Status Badge Styling Helper
@@ -410,34 +466,34 @@ export default function Applicants() {
   };
 
   return (
-    <div className={`flex min-h-screen bg-[#F9F7F7] dark:bg-[#08170d] transition-colors font-sans text-[#133020] dark:text-[#eff7ed] ${isResizing ? "select-none cursor-col-resize" : ""}`}>
+    <div className={`flex flex-col lg:flex-row min-h-screen bg-[#F9F7F7] dark:bg-[#08170d] transition-colors font-sans text-[#133020] dark:text-[#eff7ed] ${isResizing ? "select-none cursor-col-resize" : ""}`}>
       <Sidebar activeTab="Applicants" />
 
-      <main className="flex-1 flex h-screen overflow-hidden w-full">
+      <main className="flex-1 flex h-[calc(100vh-69px)] lg:h-screen overflow-hidden w-full">
         
         {/* Left Workspace Column */}
         <div 
           ref={leftPaneRef}
-          style={selectedApplicant ? { "--left-width": `${listWidth}px` } : undefined}
-          className={`h-full flex flex-col overflow-hidden min-w-0 ${
-            selectedApplicant ? "w-full lg:w-[var(--left-width)] shrink-0" : "flex-1 w-full"
-          }`}
+          style={{ "--left-width": `${listWidth}px` }}
+          className={`h-full flex-col overflow-hidden min-w-0 ${
+            selectedApplicant && isDetailOpen ? "hidden lg:flex" : "flex"
+          } w-full lg:w-[var(--left-width)] lg:max-w-[calc(100%-360px)] shrink-0`}
         >
           
           {/* Sticky Header Row with Unified Search + Filter Bar */}
-          <header className="p-4 sm:p-6 lg:p-8 pb-4 sm:pb-5 lg:pb-6 border-b border-gray-200 dark:border-white/10 bg-[#F9F7F7] dark:bg-[#08170d] shrink-0 z-10 flex flex-col md:flex-row md:items-center justify-between gap-4">
-              <div>
-                <h1 className="text-3xl font-extrabold text-[#133020] dark:text-white tracking-tight flex items-center gap-3">
-                  Applicants
-                  {isLoadingDb && <span className="text-xs font-normal text-gray-500 animate-pulse">(Syncing DB...)</span>}
-                </h1>
-                <p className="text-sm text-gray-500 dark:text-white/60 mt-1">
+          <header className="p-4 sm:p-6 lg:p-8 pb-4 sm:pb-5 lg:pb-6 border-b border-gray-200 dark:border-white/10 bg-[#F9F7F7] dark:bg-[#08170d] shrink-0 z-10 flex flex-wrap items-center justify-between gap-4">
+            <div className="min-w-[180px] flex-1">
+              <h1 className="text-2xl sm:text-3xl font-extrabold text-[#133020] dark:text-white tracking-tight flex items-center gap-2 sm:gap-3 truncate">
+                Applicants
+                {isLoadingDb && <span className="text-xs font-normal text-gray-500 animate-pulse shrink-0">(Syncing DB...)</span>}
+              </h1>
+              <p className="text-xs sm:text-sm text-gray-500 dark:text-white/60 mt-1 truncate">
                 {filteredApplicants.length} of {stats.total} applicants · Lifewood Data Technology
               </p>
             </div>
 
             {/* Combined Search Bar & Filter Button in Header */}
-            <div className="w-full md:w-[360px] lg:w-[420px] shrink-0 relative">
+            <div className="w-full max-w-full sm:w-auto sm:min-w-[260px] sm:max-w-[420px] flex-1 shrink-0 relative">
               <div className="flex items-center justify-between bg-white dark:bg-[#133020] rounded-full border border-gray-200 dark:border-white/10 p-1 shadow-xs focus-within:border-[#046241] dark:focus-within:border-[#FFC370] focus-within:ring-2 focus-within:ring-[#046241]/20 dark:focus-within:ring-[#FFC370]/20 transition-all">
                 <div className="flex items-center gap-2 pl-3.5 flex-1 min-w-0">
                   <Search className="text-gray-400 dark:text-white/40 shrink-0" size={16} />
@@ -478,7 +534,7 @@ export default function Applicants() {
 
               {/* Mini Dropdown for Filters */}
               {isFilterMenuOpen && (
-                <div className="absolute right-0 top-full mt-2 w-full sm:w-[340px] bg-[#133020] dark:bg-[#08170d] text-white p-4 rounded-2xl border border-[#046241]/40 dark:border-white/15 shadow-2xl z-50 space-y-4">
+                <div className="absolute right-0 top-full mt-2 w-[340px] max-w-[calc(100%-10px)] bg-[#133020] dark:bg-[#08170d] text-white p-4 rounded-2xl border border-[#046241]/40 dark:border-white/15 shadow-2xl z-50 space-y-4">
                   <div className="flex items-center justify-between pb-2 border-b border-white/10">
                     <span className="text-xs font-black uppercase tracking-wider text-white/80 flex items-center gap-1.5">
                       <Filter size={12} className="text-[#FFC370]" /> Filter Options
@@ -572,70 +628,69 @@ export default function Applicants() {
           {/* Scrollable Workspace Content */}
           <div className="flex-1 overflow-y-auto p-4 sm:p-6 lg:p-8 pt-4 sm:pt-6 lg:pt-6 space-y-6">
             {/* Top 5 Summary Stats Boxes */}
-          <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-3 sm:gap-4 mb-6">
+          <div className="grid grid-cols-[repeat(auto-fit,minmax(100px,1fr))] gap-2 sm:gap-3.5 mb-6">
             <div 
               onClick={() => { setStatusFilter('all'); setTypeFilter('all'); }}
-              className={`p-4 rounded-2xl border text-center transition-all cursor-pointer shadow-xs ${
+              className={`p-3 sm:p-4 rounded-2xl border text-center transition-all cursor-pointer shadow-xs flex flex-col items-center justify-center min-w-[90px] overflow-hidden ${
                 statusFilter === 'all' && typeFilter === 'all'
                   ? 'bg-white dark:bg-[#133020] border-[#046241] dark:border-[#FFC370] ring-2 ring-[#046241]/20 dark:ring-[#FFC370]/20 shadow-md'
                   : 'bg-white/80 dark:bg-[#133020]/60 border-gray-200 dark:border-white/10 hover:bg-white dark:hover:bg-[#133020]'
               }`}
             >
-              <p className="text-2xl font-black text-[#133020] dark:text-white">{stats.total}</p>
-              <p className="text-[11px] font-bold uppercase tracking-wider text-gray-500 dark:text-white/60 mt-1">TOTAL</p>
+              <p className="text-xl sm:text-2xl font-black text-[#133020] dark:text-white">{stats.total}</p>
+              <p className="text-[10px] sm:text-[11px] font-bold uppercase tracking-wider text-gray-500 dark:text-white/60 mt-1 truncate max-w-full">TOTAL</p>
             </div>
 
             <div 
               onClick={() => setStatusFilter(statusFilter === 'accepted' ? 'all' : 'accepted')}
-              className={`p-4 rounded-2xl border text-center transition-all cursor-pointer shadow-xs ${
+              className={`p-3 sm:p-4 rounded-2xl border text-center transition-all cursor-pointer shadow-xs flex flex-col items-center justify-center min-w-[90px] overflow-hidden ${
                 statusFilter === 'accepted'
                   ? 'bg-[#046241]/10 dark:bg-[#046241]/30 border-[#046241] dark:border-[#FFC370] ring-2 ring-[#046241]/20 shadow-md'
                   : 'bg-white/80 dark:bg-[#133020]/60 border-gray-200 dark:border-white/10 hover:bg-[#046241]/5 dark:hover:bg-[#046241]/20'
               }`}
             >
-              <p className="text-2xl font-black text-[#046241] dark:text-[#FFC370]">{stats.accepted}</p>
-              <p className="text-[11px] font-bold uppercase tracking-wider text-[#046241] dark:text-[#FFC370] mt-1">ACCEPTED</p>
+              <p className="text-xl sm:text-2xl font-black text-[#046241] dark:text-[#FFC370]">{stats.accepted}</p>
+              <p className="text-[10px] sm:text-[11px] font-bold uppercase tracking-wider text-[#046241] dark:text-[#FFC370] mt-1 truncate max-w-full">ACCEPTED</p>
             </div>
 
             <div 
               onClick={() => setStatusFilter(statusFilter === 'rejected' ? 'all' : 'rejected')}
-              className={`p-4 rounded-2xl border text-center transition-all cursor-pointer shadow-xs ${
+              className={`p-3 sm:p-4 rounded-2xl border text-center transition-all cursor-pointer shadow-xs flex flex-col items-center justify-center min-w-[90px] overflow-hidden ${
                 statusFilter === 'rejected'
                   ? 'bg-red-50 dark:bg-red-950/40 border-red-500 ring-2 ring-red-500/20 shadow-md'
                   : 'bg-white/80 dark:bg-[#133020]/60 border-gray-200 dark:border-white/10 hover:bg-red-50/50 dark:hover:bg-red-950/20'
               }`}
             >
-              <p className="text-2xl font-black text-red-600 dark:text-red-400">{stats.rejected}</p>
-              <p className="text-[11px] font-bold uppercase tracking-wider text-red-600 dark:text-red-400 mt-1">REJECTED</p>
+              <p className="text-xl sm:text-2xl font-black text-red-600 dark:text-red-400">{stats.rejected}</p>
+              <p className="text-[10px] sm:text-[11px] font-bold uppercase tracking-wider text-red-600 dark:text-red-400 mt-1 truncate max-w-full">REJECTED</p>
             </div>
 
             <div 
               onClick={() => setStatusFilter(statusFilter === 'pending' ? 'all' : 'pending')}
-              className={`p-4 rounded-2xl border text-center transition-all cursor-pointer shadow-xs ${
+              className={`p-3 sm:p-4 rounded-2xl border text-center transition-all cursor-pointer shadow-xs flex flex-col items-center justify-center min-w-[90px] overflow-hidden ${
                 statusFilter === 'pending'
                   ? 'bg-amber-50 dark:bg-amber-950/40 border-amber-500 ring-2 ring-amber-500/20 shadow-md'
                   : 'bg-white/80 dark:bg-[#133020]/60 border-gray-200 dark:border-white/10 hover:bg-amber-50/50 dark:hover:bg-amber-950/20'
               }`}
             >
-              <p className="text-2xl font-black text-amber-600 dark:text-amber-400">{stats.pending}</p>
-              <p className="text-[11px] font-bold uppercase tracking-wider text-amber-600 dark:text-amber-400 mt-1">PENDING</p>
+              <p className="text-xl sm:text-2xl font-black text-amber-600 dark:text-amber-400">{stats.pending}</p>
+              <p className="text-[10px] sm:text-[11px] font-bold uppercase tracking-wider text-amber-600 dark:text-amber-400 mt-1 truncate max-w-full">PENDING</p>
             </div>
 
-            <div className="p-4 rounded-2xl border border-gray-200 dark:border-white/10 bg-white/80 dark:bg-[#133020]/60 text-center shadow-xs col-span-2 sm:col-span-1">
-              <p className="text-2xl font-black text-blue-600 dark:text-blue-400">{stats.avgScore}%</p>
-              <p className="text-[11px] font-bold uppercase tracking-wider text-blue-600 dark:text-blue-400 mt-1">AVG SCORE</p>
+            <div className="p-3 sm:p-4 rounded-2xl border border-gray-200 dark:border-white/10 bg-white/80 dark:bg-[#133020]/60 text-center shadow-xs flex flex-col items-center justify-center min-w-[90px] overflow-hidden">
+              <p className="text-xl sm:text-2xl font-black text-blue-600 dark:text-blue-400">{stats.avgScore}%</p>
+              <p className="text-[10px] sm:text-[11px] font-bold uppercase tracking-wider text-blue-600 dark:text-blue-400 mt-1 truncate max-w-full">AVG SCORE</p>
             </div>
           </div>
-
           {/* Filtering Pillboxes Card (below the summary stats cards) */}
-          <div className="bg-[#133020] dark:bg-[#0a1e13] text-white p-3.5 sm:px-5 sm:py-3.5 rounded-2xl border border-[#046241]/30 dark:border-white/10 shadow-md mb-6 flex flex-col lg:flex-row lg:items-center justify-between gap-3 sm:gap-4 text-xs font-extrabold">
+          <div className="bg-[#133020] dark:bg-[#0a1e13] text-white p-3.5 sm:p-4 rounded-2xl border border-[#046241]/30 dark:border-white/10 shadow-md mb-6 flex flex-col gap-3 text-xs font-extrabold overflow-hidden">
             
-            {/* Left side: Type filters (All, Intern, Regular) */}
-            <div className="flex items-center gap-2 flex-wrap shrink-0">
+            {/* Top row: Type filters (All, Intern, Regular) */}
+            <div className="flex items-center gap-1.5 sm:gap-2 flex-wrap">
               <button
                 type="button"
                 onClick={() => setTypeFilter('all')}
-                className={`px-4 py-1.5 rounded-full border transition-all cursor-pointer ${
+                className={`px-3.5 sm:px-4 py-1.5 rounded-full border transition-all cursor-pointer ${
                   typeFilter === 'all'
                     ? 'bg-white text-[#133020] border-transparent shadow-sm'
                     : 'text-white/80 border-transparent hover:bg-white/10 hover:text-white'
@@ -646,7 +701,7 @@ export default function Applicants() {
               <button
                 type="button"
                 onClick={() => setTypeFilter(typeFilter === 'intern' ? 'all' : 'intern')}
-                className={`px-3.5 py-1.5 rounded-full border transition-all cursor-pointer flex items-center gap-1.5 ${
+                className={`px-3 sm:px-3.5 py-1.5 rounded-full border transition-all cursor-pointer flex items-center gap-1.5 ${
                   typeFilter === 'intern'
                     ? 'bg-white text-[#133020] border-transparent shadow-sm'
                     : 'text-white/80 border-transparent hover:bg-white/10 hover:text-white'
@@ -662,7 +717,7 @@ export default function Applicants() {
               <button
                 type="button"
                 onClick={() => setTypeFilter(typeFilter === 'regular' ? 'all' : 'regular')}
-                className={`px-3.5 py-1.5 rounded-full border transition-all cursor-pointer flex items-center gap-1.5 ${
+                className={`px-3 sm:px-3.5 py-1.5 rounded-full border transition-all cursor-pointer flex items-center gap-1.5 ${
                   typeFilter === 'regular'
                     ? 'bg-white text-[#133020] border-transparent shadow-sm'
                     : 'text-white/80 border-transparent hover:bg-white/10 hover:text-white'
@@ -677,14 +732,14 @@ export default function Applicants() {
               </button>
             </div>
 
-            {/* Right side: Status filters */}
-            <div className="flex items-center gap-1 sm:gap-1.5 flex-wrap border-t lg:border-t-0 pt-3 lg:pt-0 border-white/10">
+            {/* Bottom row: Status filters */}
+            <div className="flex items-center gap-1 sm:gap-1.5 flex-wrap border-t border-white/10 pt-3">
               {['all', 'accepted', 'rejected', 'pending'].map((st) => (
                 <button
                   key={st}
                   type="button"
                   onClick={() => setStatusFilter(statusFilter === st ? 'all' : st)}
-                  className={`px-3.5 py-1.5 rounded-full border capitalize transition-all cursor-pointer ${
+                  className={`px-3 sm:px-3.5 py-1.5 rounded-full border capitalize transition-all cursor-pointer ${
                     statusFilter === st
                       ? 'bg-white/20 text-white border-white/40 shadow-xs'
                       : 'text-white/70 border-transparent hover:bg-white/10 hover:text-white'
@@ -694,7 +749,6 @@ export default function Applicants() {
                 </button>
               ))}
             </div>
-
           </div>
 
           {/* Applicant Cards Grid Section */}
@@ -715,11 +769,7 @@ export default function Applicants() {
                 </button>
               </div>
             ) : (
-              <div className={`grid gap-4 ${
-                selectedApplicant 
-                  ? 'grid-cols-1 sm:grid-cols-2 lg:grid-cols-2 xl:grid-cols-2' 
-                  : 'grid-cols-1 sm:grid-cols-2 lg:grid-cols-3'
-                }`}>
+              <div className="grid grid-cols-[repeat(auto-fill,minmax(280px,1fr))] gap-4">
                   {filteredApplicants.map((app) => {
                     const isSelected = selectedId === app.id;
                     const badge = getStatusBadge(app.status);
@@ -728,7 +778,7 @@ export default function Applicants() {
                     return (
                       <div
                         key={app.id}
-                        onClick={() => setSelectedId(app.id)}
+                        onClick={() => { setSelectedId(app.id); setIsDetailOpen(true); }}
                         className={`p-5 rounded-2xl border transition-all cursor-pointer relative overflow-hidden group shadow-xs hover:shadow-md ${
                           isSelected
                             ? 'bg-[#f5eedb]/50 dark:bg-white/10 border-[#046241] dark:border-[#FFC370] ring-2 ring-[#046241]/20 dark:ring-[#FFC370]/20'
@@ -813,25 +863,35 @@ export default function Applicants() {
         </div> {/* End of Left Workspace Column */}
 
         {/* Resizer Handle */}
-        {selectedApplicant && (
-          <div 
-              onMouseDown={startResizing}
-              title="Drag to resize applicants workspace pane"
-              className={`hidden lg:flex w-2 -ml-1 h-full bg-transparent hover:bg-[#046241] dark:hover:bg-[#FFC370] cursor-col-resize transition-colors shrink-0 z-30 relative items-center justify-center group ${
-                isResizing ? "bg-[#046241] dark:bg-[#FFC370]" : ""
-              }`}
-          >
-            <div className="w-[2px] h-12 bg-gray-300 dark:bg-white/20 group-hover:bg-white dark:group-hover:bg-[#133020] rounded-full transition-colors" />
-          </div>
-        )}
+        <div 
+          onMouseDown={startResizing}
+          title="Drag to resize applicants workspace pane"
+          className={`hidden lg:flex w-2 -ml-1 h-full bg-transparent hover:bg-[#046241] dark:hover:bg-[#FFC370] cursor-col-resize transition-colors shrink-0 z-30 relative items-center justify-center group ${
+            isResizing ? "bg-[#046241] dark:bg-[#FFC370]" : ""
+          }`}
+        >
+          <div className="w-[2px] h-12 bg-gray-300 dark:bg-white/20 group-hover:bg-white dark:group-hover:bg-[#133020] rounded-full transition-colors" />
+        </div>
 
           {/* Continuous Right Sidebar: Spans entire height from top to bottom exactly like Internal Mail! */}
-          {selectedApplicant && (
-            <div className="flex-1 shrink-0 h-full bg-white dark:bg-[#133020] border-l border-gray-200 dark:border-white/10 shadow-xl overflow-hidden flex flex-col min-w-[340px]">
+          <div className={`flex-1 w-full flex-col h-full bg-white dark:bg-[#133020] border-l border-gray-200 dark:border-white/10 shadow-xl overflow-hidden min-w-0 ${
+            selectedApplicant && isDetailOpen ? "flex" : "hidden lg:flex"
+          }`}>
+            {selectedApplicant && isDetailOpen ? (
+              <>
               
               {/* 1. Top Action Icons Bar */}
               <div className="flex items-center justify-between p-3.5 border-b border-gray-100 dark:border-white/10 text-gray-500 dark:text-white/60 shrink-0">
                 <div className="flex items-center gap-0.5">
+                  <button 
+                    type="button"
+                    onClick={() => setIsDetailOpen(false)}
+                    title="Back to applicant list" 
+                    className="lg:hidden p-2 rounded-lg hover:bg-gray-100 dark:hover:bg-white/10 hover:text-[#133020] dark:hover:text-white transition cursor-pointer flex items-center gap-1.5 text-xs font-extrabold mr-2 bg-gray-100 dark:bg-white/10 px-3 text-[#133020] dark:text-white shrink-0" 
+                  >
+                    <ArrowLeft size={16} />
+                    <span>Back to List</span>
+                  </button>
                   <button 
                     type="button"
                     onClick={() => handleStatusChange(selectedApplicant.id, 'archived')}
@@ -848,42 +908,11 @@ export default function Applicants() {
                     >
                       <Trash2 size={16} />
                     </button>
-                    <button 
-                      type="button"
-                      onClick={() => alert(`Tagging applicant ${selectedApplicant.name}`)}
-                      title="Tag / Label"
-                      className="p-2 hover:bg-gray-100 dark:hover:bg-white/10 rounded-lg hover:text-[#133020] dark:hover:text-white transition cursor-pointer"
-                    >
-                      <Tag size={16} />
-                    </button>
-                    <button 
-                      type="button"
-                      onClick={() => alert(`Replying to ${selectedApplicant.name}`)}
-                      title="Reply"
-                      className="p-2 hover:bg-gray-100 dark:hover:bg-white/10 rounded-lg hover:text-[#133020] dark:hover:text-white transition cursor-pointer"
-                    >
-                      <Reply size={16} />
-                    </button>
-                    <button 
-                      type="button"
-                      onClick={() => alert(`Reply all to ${selectedApplicant.name} and team`)}
-                      title="Reply All"
-                      className="p-2 hover:bg-gray-100 dark:hover:bg-white/10 rounded-lg hover:text-[#133020] dark:hover:text-white transition cursor-pointer"
-                    >
-                      <ReplyAll size={16} />
-                    </button>
-                    <button 
-                      type="button"
-                      title="More options"
-                      className="p-2 hover:bg-gray-100 dark:hover:bg-white/10 rounded-lg hover:text-[#133020] dark:hover:text-white transition cursor-pointer"
-                    >
-                      <MoreHorizontal size={16} />
-                    </button>
                   </div>
 
                   <button
                     type="button"
-                    onClick={() => setSelectedId(null)}
+                    onClick={() => { setIsDetailOpen(false); setSelectedId(null); }}
                     title="Close Details"
                     className="p-2 hover:bg-gray-100 dark:hover:bg-white/10 rounded-lg hover:text-[#133020] dark:hover:text-white transition cursor-pointer"
                   >
@@ -898,15 +927,15 @@ export default function Applicants() {
                   <div className="bg-[#0c1f14] dark:bg-black/40 text-white rounded-2xl m-4 p-5 border border-emerald-500/20 shadow-md">
                     <div className="flex items-start justify-between gap-3">
                       {/* Avatar & Title Info */}
-                      <div className="flex items-center gap-3.5 min-w-0">
+                      <div className="flex items-center gap-3.5 min-w-0 flex-1">
                         <div className="size-11 rounded-full bg-[#046241] text-white font-black text-sm flex items-center justify-center shrink-0 ring-2 ring-emerald-400/30 shadow-md">
                           {selectedApplicant.initials}
                         </div>
-                        <div className="min-w-0">
+                        <div className="min-w-0 flex-1">
                           <h3 className="text-base font-bold text-white truncate">
                             Application for {selectedApplicant.position}
                           </h3>
-                          <p className="text-xs text-emerald-200/60 mt-0.5">
+                          <p className="text-xs text-emerald-200/60 mt-0.5 truncate">
                             {selectedApplicant.name} · {selectedApplicant.timeAgo}
                           </p>
                         </div>
@@ -945,42 +974,33 @@ export default function Applicants() {
                     </div>
                   </div>
 
-                  {/* 3. 2x2 Metadata Grid with borders (Exact match to screenshot!) */}
-                  <div className="grid grid-cols-2 border-y border-gray-200 dark:border-white/10 text-xs">
-                    <div className="p-4 border-r border-b border-gray-200 dark:border-white/10">
-                      <span className="flex items-center gap-1.5 text-[10px] font-bold uppercase tracking-wider text-gray-400 dark:text-white/40 mb-1">
-                        <MapPin size={12} className="text-[#046241] dark:text-[#FFC370]" />
-                        COUNTRY
-                      </span>
-                      <span className="font-semibold text-[#133020] dark:text-white text-sm">
-                        {selectedApplicant.country}
-                      </span>
-                    </div>
-                    <div className="p-4 border-b border-gray-200 dark:border-white/10">
-                      <span className="flex items-center gap-1.5 text-[10px] font-bold uppercase tracking-wider text-gray-400 dark:text-white/40 mb-1">
-                        <Briefcase size={12} className="text-[#046241] dark:text-[#FFC370]" />
+                  {/* 3. 1x3 Metadata Grid with borders side-by-side (Position, Work Experience, Education) */}
+                  <div className="grid grid-cols-3 border-y border-gray-200 dark:border-white/10 text-xs">
+                    <div className="p-4 border-r border-gray-200 dark:border-white/10 overflow-hidden">
+                      <span className="flex items-center gap-1.5 text-[10px] font-bold uppercase tracking-wider text-gray-400 dark:text-white/40 mb-1 truncate">
+                        <Briefcase size={12} className="text-[#046241] dark:text-[#FFC370] shrink-0" />
                         POSITION
                       </span>
-                      <span className="font-semibold text-[#133020] dark:text-white text-sm truncate block">
+                      <span className="font-semibold text-[#133020] dark:text-white text-sm truncate block" title={selectedApplicant.position}>
                         {selectedApplicant.position}
                       </span>
                     </div>
-                    <div className="p-4 border-r border-gray-200 dark:border-white/10">
-                      <span className="flex items-center gap-1.5 text-[10px] font-bold uppercase tracking-wider text-gray-400 dark:text-white/40 mb-1">
-                        <GraduationCap size={12} className="text-[#046241] dark:text-[#FFC370]" />
+                    <div className="p-4 border-r border-gray-200 dark:border-white/10 overflow-hidden">
+                      <span className="flex items-center gap-1.5 text-[10px] font-bold uppercase tracking-wider text-gray-400 dark:text-white/40 mb-1 truncate">
+                        <Award size={12} className="text-[#046241] dark:text-[#FFC370] shrink-0" />
+                        WORK EXPERIENCE
+                      </span>
+                      <span className="font-semibold text-[#133020] dark:text-white text-sm">
+                        {selectedApplicant.experience}
+                      </span>
+                    </div>
+                    <div className="p-4 overflow-hidden">
+                      <span className="flex items-center gap-1.5 text-[10px] font-bold uppercase tracking-wider text-gray-400 dark:text-white/40 mb-1 truncate">
+                        <GraduationCap size={12} className="text-[#046241] dark:text-[#FFC370] shrink-0" />
                         EDUCATION
                       </span>
                       <span className="font-semibold text-[#133020] dark:text-white text-sm">
                         {selectedApplicant.education}
-                      </span>
-                    </div>
-                    <div className="p-4">
-                      <span className="flex items-center gap-1.5 text-[10px] font-bold uppercase tracking-wider text-gray-400 dark:text-white/40 mb-1">
-                        <Award size={12} className="text-[#046241] dark:text-[#FFC370]" />
-                        EXPERIENCE
-                      </span>
-                      <span className="font-semibold text-[#133020] dark:text-white text-sm">
-                        {selectedApplicant.experience}
                       </span>
                     </div>
                   </div>
@@ -991,10 +1011,20 @@ export default function Applicants() {
                     {/* MESSAGE Section */}
                     <div>
                       <h4 className="text-[10px] font-extrabold text-gray-400 dark:text-white/40 uppercase tracking-wider mb-2.5">
-                        MESSAGE
+                        COVER LETTER / MESSAGE
                       </h4>
                       <div className="text-gray-700 dark:text-white/90 whitespace-pre-line leading-relaxed text-xs sm:text-sm font-normal">
                         {selectedApplicant.message}
+                      </div>
+                    </div>
+
+                    {/* EMAIL Section */}
+                    <div className="pt-3 border-t border-gray-100 dark:border-white/10">
+                      <h4 className="text-[10px] font-extrabold text-gray-400 dark:text-white/40 uppercase tracking-wider mb-2.5">
+                        EMAIL
+                      </h4>
+                      <div className="p-3.5 bg-gray-900 text-emerald-400 dark:bg-black dark:text-emerald-300 rounded-xl border border-gray-800 dark:border-white/10 font-mono text-[11px] overflow-x-auto whitespace-pre leading-relaxed shadow-inner max-h-72 overflow-y-auto">
+                        {selectedApplicant.rawEmail}
                       </div>
                     </div>
 
@@ -1074,40 +1104,19 @@ export default function Applicants() {
 
                         <button
                           type="button"
-                          onClick={() => handleStatusChange(selectedApplicant.id, 'shortlisted')}
-                          className={`py-2 px-3 rounded-full text-xs font-bold flex items-center justify-center gap-1 transition cursor-pointer shadow-sm ${
-                            selectedApplicant.status === 'shortlisted'
-                              ? 'bg-[#FFB347] text-[#133020] ring-2 ring-[#133020] shadow-md font-black'
-                              : 'bg-[#FFB347] hover:opacity-90 text-[#133020]'
+                          onClick={() => handleToggleUrgent(selectedApplicant.id)}
+                          className={`py-2 px-3 rounded-full text-xs font-bold border flex items-center justify-center gap-1.5 transition cursor-pointer shadow-sm ${
+                            selectedApplicant.urgent
+                              ? 'bg-[#FFB347] text-[#133020] border-[#FFB347] ring-2 ring-[#133020] shadow-md font-black'
+                              : 'bg-[#FFB347]/20 dark:bg-[#FFC370]/20 text-[#133020] dark:text-[#FFC370] border-[#FFB347] dark:border-[#FFC370] hover:bg-[#FFB347]/30'
                           }`}
                         >
-                          <Star size={14} className="fill-current" />
-                          <span>Shortlist</span>
+                          <AlertTriangle size={14} className={selectedApplicant.urgent ? 'text-[#133020] fill-current' : 'text-[#FFB347] dark:text-[#FFC370]'} />
+                          <span>Urgent</span>
                         </button>
                       </div>
 
-                      <div className="grid grid-cols-3 gap-2.5">
-                        <button
-                          type="button"
-                          onClick={() => handleToggleUrgent(selectedApplicant.id)}
-                          className={`py-2 px-3 rounded-full text-xs font-bold border flex items-center justify-center gap-1.5 transition cursor-pointer ${
-                            selectedApplicant.urgent
-                              ? 'bg-[#FFB347]/20 dark:bg-[#FFC370]/20 text-[#133020] dark:text-[#FFC370] border-[#FFB347] dark:border-[#FFC370] font-black'
-                              : 'bg-transparent text-gray-600 dark:text-white/80 border-gray-300 dark:border-white/20 hover:bg-gray-50 dark:hover:bg-white/5'
-                          }`}
-                        >
-                          <AlertTriangle size={13} className={selectedApplicant.urgent ? 'text-[#FFB347] dark:text-[#FFC370]' : 'text-[#FFB347]/60'} />
-                          <span>Urgent</span>
-                        </button>
-
-                        <button
-                          type="button"
-                          onClick={() => alert(`Applicant ${selectedApplicant.name} flagged for compliance review.`)}
-                          className="py-2 px-3 rounded-full text-xs font-bold border bg-transparent text-gray-600 dark:text-white/80 border-gray-300 dark:border-white/20 hover:bg-gray-50 dark:hover:bg-white/5 flex items-center justify-center gap-1.5 transition cursor-pointer"
-                        >
-                          <span>Report</span>
-                        </button>
-
+                      <div className="grid grid-cols-1 gap-2.5">
                         <button
                           type="button"
                           onClick={() => handleStatusChange(selectedApplicant.id, 'archived')}
@@ -1201,8 +1210,20 @@ export default function Applicants() {
                   </div>
                 </div>
 
+              </>
+            ) : (
+              /* Clean Empty State when No Applicant is Selected or Back/Close was clicked */
+              <div className="flex-1 w-full h-full flex flex-col items-center justify-center p-8 text-center animate-fade-in mx-auto my-auto">
+                <div className="p-5 rounded-full bg-[#f5eedb] dark:bg-[#046241]/20 border border-gray-200 dark:border-white/10 text-[#046241] dark:text-[#FFC370] mb-4 shadow-sm">
+                  <Users size={44} />
+                </div>
+                <h3 className="text-xl font-black text-[#133020] dark:text-white">No Applicant Selected</h3>
+                <p className="mt-2 text-xs leading-6 text-gray-500 dark:text-white/60 max-w-md mx-auto">
+                  Select an applicant from the list on the left to view their cover letter, screening score, resume, and communication history.
+                </p>
               </div>
             )}
+          </div>
 
       </main>
 

@@ -1,6 +1,6 @@
 # Lifemail Employee Onboarding & Authentication Guide
 
-When an HR Administrator creates a new user account via the terminal script (`npm run create-user`), the system generates a secure 10-character temporary password. 
+When an HR Administrator creates a new user account via the terminal script (`npm run create-user`), the system generates a secure 16-character temporary password.
 
 Because we use an **invite-only architecture**, employees cannot sign up on their own. You need to send them their initial credentials and instructions on how to access the workspace.
 
@@ -21,7 +21,7 @@ Since our platform handles sensitive HR data and email workflows, we use an invi
 
 🌐 Portal URL: [Insert Your Live/Staging Link Here, e.g., http://localhost:5173]
 ✉️ Login Email: [Employee Email Address]
-🔑 Temporary Password: [Paste the 10-character password from your terminal]
+🔑 Temporary Password: [Paste the 16-character password from your terminal]
 
 ---
 
@@ -29,7 +29,7 @@ Since our platform handles sensitive HR data and email workflows, we use an invi
 
 1. Go to the Portal URL above and enter your work email and the temporary password.
 2. Because this is your first time logging in, our security system will immediately intercept your request and redirect you to the "Secure Your Account" portal.
-3. You will be required to create your own private, secure password (minimum 6 characters).
+3. You will be required to create your own private, secure password (minimum 12 characters).
 4. Once updated, you will automatically be granted full access to the Dashboard!
 
 Note: Please change your password immediately upon receipt of this email. Never share your Lifemail password with anyone.

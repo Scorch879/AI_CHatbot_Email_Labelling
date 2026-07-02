@@ -1,5 +1,6 @@
 /* global process */
 import { createClient } from '@supabase/supabase-js';
+import { randomInt } from 'crypto';
 import dotenv from 'dotenv';
 import path from 'path';
 import { fileURLToPath } from 'url';
@@ -13,7 +14,7 @@ const supabaseUrl = process.env.SUPABASE_URL;
 const supabaseServiceKey = process.env.SUPABASE_SERVICE_ROLE_KEY; 
 
 if (!supabaseUrl || !supabaseServiceKey) {
-  console.error('Error: SUPABASE_URL and SUPABASE_KEY must be set in your root .env file.');
+  console.error('Error: SUPABASE_URL and SUPABASE_SERVICE_ROLE_KEY must be set in your root .env file.');
   process.exit(1);
 }
 
@@ -25,12 +26,25 @@ const supabaseAdmin = createClient(supabaseUrl, supabaseServiceKey, {
 });
 
 function generatePassword() {
-  const chars = 'ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789!@#$%^&*';
-  let pass = '';
-  for (let i = 0; i < 10; i++) {
-    pass += chars.charAt(Math.floor(Math.random() * chars.length));
+  const groups = [
+    'ABCDEFGHIJKLMNOPQRSTUVWXYZ',
+    'abcdefghijklmnopqrstuvwxyz',
+    '0123456789',
+    '!@#$%^&*'
+  ];
+  const chars = groups.join('');
+  const passwordChars = groups.map(group => group.charAt(randomInt(group.length)));
+
+  while (passwordChars.length < 16) {
+    passwordChars.push(chars.charAt(randomInt(chars.length)));
   }
-  return pass;
+
+  for (let i = passwordChars.length - 1; i > 0; i--) {
+    const swapIndex = randomInt(i + 1);
+    [passwordChars[i], passwordChars[swapIndex]] = [passwordChars[swapIndex], passwordChars[i]];
+  }
+
+  return passwordChars.join('');
 }
 
 async function createUser(email, fullName) {
@@ -44,8 +58,11 @@ async function createUser(email, fullName) {
     password: password,
     email_confirm: true, // Auto-confirm the email so they can log in immediately
     user_metadata: { 
-      full_name: fullName,
-      force_password_reset: true 
+      full_name: fullName
+    },
+    app_metadata: {
+      role: 'hr',
+      must_reset_password: true
     }
   });
 
@@ -57,10 +74,18 @@ async function createUser(email, fullName) {
   const userId = authData.user.id;
   console.log(`User created with ID: ${userId}`);
 
-  // 2. Insert into public.profiles
+  // 2. Upsert into public.profiles so reruns and auth triggers cannot collide.
   const { error: profileError } = await supabaseAdmin
     .from('profiles')
-    .insert([{ id: userId, full_name: fullName }]);
+    .upsert(
+      [{
+        id: userId,
+        full_name: fullName,
+        role: 'hr',
+        must_reset_password: true
+      }],
+      { onConflict: 'id' }
+    );
 
   if (profileError) {
     console.error('Error creating user profile:', profileError.message);

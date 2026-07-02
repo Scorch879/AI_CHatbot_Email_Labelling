@@ -1,4 +1,4 @@
-import { useMemo, useState, useRef } from "react";
+import { useMemo, useState, useRef, useEffect } from "react";
 import {
   Archive,
   ArrowLeft,
@@ -18,6 +18,13 @@ import {
 } from "lucide-react";
 import Sidebar from "../components/Sidebar";
 import ChatbotAssistant from "../components/ChatbotAssistant";
+import { supabase } from "../supabaseClient";
+
+const logDatabaseError = (action, error) => {
+  if (error) {
+    console.warn(`${action}:`, error.message || error);
+  }
+};
 
 const initialMessages = [
   {
@@ -133,17 +140,77 @@ function Badge({ type, children }) {
 
 export default function InternalMail() {
   const [messagesList, setMessagesList] = useState(initialMessages);
-  const [selectedId, setSelectedId] = useState(() => initialMessages[0]?.id);
-  const [isDetailOpen, setIsDetailOpen] = useState(true);
+  const [selectedId, setSelectedId] = useState(() => localStorage.getItem('lifemail_internal_selected_id') || null);
+  const [isDetailOpen, setIsDetailOpen] = useState(() => localStorage.getItem('lifemail_internal_detail_open') === 'true');
   const [filter, setFilter] = useState("All");
   const [searchQuery, setSearchQuery] = useState("");
   const [replyText, setReplyText] = useState("");
   
+  // Attempt to load from Supabase database on mount (if table exists)
+  useEffect(() => {
+    const fetchFromDatabase = async () => {
+      try {
+        if (!supabase) return;
+        const { data, error } = await supabase.from('internal_mail').select('*');
+        if (error) {
+          logDatabaseError('Internal Mail fetch failed', error);
+          return;
+        }
+        if (!data || data.length === 0) return;
+
+        const mapped = data.map(item => ({
+          id: item.id?.toString() || crypto.randomUUID(),
+          initials: item.initials || (item.sender ? item.sender.split(' ').map(n=>n[0]).join('') : 'IM'),
+          sender: item.sender || item.name || 'Internal Sender',
+          role: item.role || item.position || 'Team Member',
+          subject: item.subject || item.email_subject || 'No Subject',
+          preview: item.preview || (Array.isArray(item.body) ? item.body[0] : (item.body ? item.body.toString().slice(0, 80) : 'No content preview...')),
+          time: item.time || (item.created_at ? new Date(item.created_at).toLocaleDateString() : 'Recent'),
+          badge: item.badge || 'Info',
+          badgeType: item.badge_type || item.badgeType || 'info',
+          color: item.color || '#2563eb',
+          unread: item.unread !== undefined ? item.unread : true,
+          starred: item.starred !== undefined ? item.starred : false,
+          body: Array.isArray(item.body) ? item.body : (item.body ? item.body.toString().split('\n') : ['No message body stored.']),
+          replies: Array.isArray(item.replies) ? item.replies : []
+        }));
+        setMessagesList(mapped);
+        setSelectedId(current =>
+          current && mapped.some(message => message.id === current)
+            ? current
+            : null
+        );
+      } catch (err) {
+        logDatabaseError('Using default internal mail dataset', err);
+      }
+    };
+    fetchFromDatabase();
+  }, []);
+
   // Resizing state
-  const [listWidth, setListWidth] = useState(380);
+  const [listWidth, setListWidth] = useState(() => {
+    const saved = localStorage.getItem('lifemail_internal_list_width');
+    return saved ? parseInt(saved, 10) : 380;
+  });
   const [isResizing, setIsResizing] = useState(false);
   const leftPaneRef = useRef(null);
   const isResizingRef = useRef(false);
+
+  useEffect(() => {
+    if (selectedId) {
+      localStorage.setItem('lifemail_internal_selected_id', selectedId);
+    } else {
+      localStorage.removeItem('lifemail_internal_selected_id');
+    }
+  }, [selectedId]);
+
+  useEffect(() => {
+    localStorage.setItem('lifemail_internal_detail_open', isDetailOpen ? 'true' : 'false');
+  }, [isDetailOpen]);
+
+  useEffect(() => {
+    localStorage.setItem('lifemail_internal_list_width', listWidth);
+  }, [listWidth]);
 
   const startResizing = (e) => {
     e.preventDefault();
@@ -152,10 +219,15 @@ export default function InternalMail() {
     const startX = e.clientX;
     const startWidth = leftPaneRef.current ? leftPaneRef.current.getBoundingClientRect().width : listWidth;
 
+    const container = leftPaneRef.current?.parentElement;
+    const containerWidth = container ? container.getBoundingClientRect().width : window.innerWidth - 256;
+    const maxAllowedWidth = Math.min(800, Math.max(340, containerWidth - 400));
+    const minAllowedWidth = 320;
+
     const handleMouseMove = (moveEvent) => {
       if (!isResizingRef.current) return;
       const deltaX = moveEvent.clientX - startX;
-      const newWidth = Math.min(Math.max(startWidth + deltaX, 260), 750);
+      const newWidth = Math.min(Math.max(startWidth + deltaX, minAllowedWidth), maxAllowedWidth);
       setListWidth(newWidth);
     };
 
@@ -194,17 +266,24 @@ export default function InternalMail() {
   }, [messagesList, filter, searchQuery]);
 
   const selectedMessage = useMemo(
-    () => messagesList.find((message) => message.id === selectedId) ?? filteredMessages[0] ?? null,
-    [messagesList, selectedId, filteredMessages]
+    () => messagesList.find((message) => message.id === selectedId) ?? null,
+    [messagesList, selectedId]
   );
 
-  const handleSelectMessage = (id) => {
+  const handleSelectMessage = async (id) => {
     setSelectedId(id);
     setIsDetailOpen(true);
     // Mark read
     setMessagesList((prev) =>
       prev.map((m) => (m.id === id ? { ...m, unread: false } : m))
     );
+    try {
+      if (!supabase) return;
+      const { error } = await supabase.from('internal_mail').update({ unread: false }).eq('id', id);
+      logDatabaseError('Internal Mail read update failed', error);
+    } catch (err) {
+      logDatabaseError(`Internal Mail read update failed for ${id}`, err);
+    }
   };
 
   const handlePrevMessage = () => {
@@ -221,12 +300,14 @@ export default function InternalMail() {
     handleSelectMessage(filteredMessages[nextIndex].id);
   };
 
-  const handleToggleStar = (idToStar = selectedId) => {
+  const handleToggleStar = async (idToStar = selectedId) => {
     if (!idToStar) return;
+    let targetStarred = false;
     setMessagesList((prev) =>
       prev.map((m) => {
         if (m.id === idToStar) {
           const newStarred = !m.starred;
+          targetStarred = newStarred;
           if (idToStar === selectedId) {
             triggerToast(newStarred ? "Message marked as starred." : "Message removed from starred.");
           }
@@ -235,9 +316,16 @@ export default function InternalMail() {
         return m;
       })
     );
+    try {
+      if (!supabase) return;
+      const { error } = await supabase.from('internal_mail').update({ starred: targetStarred }).eq('id', idToStar);
+      logDatabaseError('Internal Mail star update failed', error);
+    } catch (err) {
+      logDatabaseError(`Internal Mail star update failed for ${idToStar}`, err);
+    }
   };
 
-  const handleArchive = () => {
+  const handleArchive = async () => {
     if (!selectedMessage) return;
     const idToRemove = selectedMessage.id;
     triggerToast("Message archived to Lifewood cold storage.");
@@ -252,9 +340,16 @@ export default function InternalMail() {
     } else {
       setIsDetailOpen(false);
     }
+    try {
+      if (!supabase) return;
+      const { error } = await supabase.from('internal_mail').delete().eq('id', idToRemove);
+      logDatabaseError('Internal Mail archive failed', error);
+    } catch (err) {
+      logDatabaseError(`Internal Mail archive failed for ${idToRemove}`, err);
+    }
   };
 
-  const handleDelete = () => {
+  const handleDelete = async () => {
     if (!selectedMessage) return;
     const idToRemove = selectedMessage.id;
     triggerToast("Message permanently deleted from inbox.");
@@ -268,29 +363,54 @@ export default function InternalMail() {
     } else {
       setIsDetailOpen(false);
     }
+    try {
+      if (!supabase) return;
+      const { error } = await supabase.from('internal_mail').delete().eq('id', idToRemove);
+      logDatabaseError('Internal Mail delete failed', error);
+    } catch (err) {
+      logDatabaseError(`Internal Mail delete failed for ${idToRemove}`, err);
+    }
   };
 
-  const handleSendReply = () => {
-    if (!replyText.trim()) return;
+  const handleSendReply = async () => {
+    if (!replyText.trim() || !selectedMessage) return;
+    const newReply = {
+      id: crypto.randomUUID(),
+      sender: "Linda Martinez",
+      time: "Just now",
+      text: replyText.trim()
+    };
     setReplyText("");
+    setMessagesList((prev) =>
+      prev.map((m) => (m.id === selectedMessage.id ? { ...m, replies: [...(m.replies || []), newReply] } : m))
+    );
     triggerToast("Reply sent securely via Lifewood internal network.");
+    try {
+      if (!supabase) return;
+      const { error } = await supabase.from('internal_mail').update({ 
+        replies: [...(selectedMessage.replies || []), newReply] 
+      }).eq('id', selectedMessage.id);
+      logDatabaseError('Internal Mail reply update failed', error);
+    } catch (err) {
+      logDatabaseError(`Internal Mail reply update failed for ${selectedMessage.id}`, err);
+    }
   };
 
   const unreadCount = messagesList.filter((m) => m.unread).length;
 
   return (
-    <div className={`flex min-h-screen bg-[#F9F7F7] dark:bg-[#08170d] text-[#133020] dark:text-[#eff7ed] font-sans ${isResizing ? "select-none cursor-col-resize" : ""}`}>
+    <div className={`flex flex-col lg:flex-row min-h-screen bg-[#F9F7F7] dark:bg-[#08170d] text-[#133020] dark:text-[#eff7ed] font-sans ${isResizing ? "select-none cursor-col-resize" : ""}`}>
       <Sidebar activeTab="Internal Mail" />
 
       {/* Main Mail Workspace */}
-      <main className="flex-1 flex h-screen overflow-hidden">
+      <main className="flex-1 flex h-[calc(100vh-69px)] lg:h-screen overflow-hidden w-full">
         
         {/* Left Message List Pane */}
         <section 
           ref={leftPaneRef}
           style={{ "--list-width": `${listWidth}px` }}
-          className={`flex-col h-full border-r border-gray-200 dark:border-white/10 bg-white dark:bg-[#08170d] overflow-hidden shrink-0 w-full md:w-[var(--list-width)] ${
-            isDetailOpen && selectedMessage ? "hidden md:flex" : "flex"
+          className={`flex-col h-full border-r border-gray-200 dark:border-white/10 bg-white dark:bg-[#08170d] overflow-hidden shrink-0 w-full lg:w-[var(--list-width)] lg:max-w-[calc(100%-380px)] ${
+            isDetailOpen && selectedMessage ? "hidden lg:flex" : "flex"
           }`}
         >
           <header className="p-4 sm:p-6 lg:p-8 pb-4 sm:pb-5 lg:pb-6 border-b border-gray-200 dark:border-white/10 bg-[#F9F7F7] dark:bg-[#08170d] shrink-0 z-10">
@@ -420,21 +540,19 @@ export default function InternalMail() {
         </section>
 
         {/* Resizer Handle */}
-        {isDetailOpen && selectedMessage && (
-          <div
-            onMouseDown={startResizing}
-            title="Drag to resize message list pane"
-            className={`hidden md:flex w-2 -ml-1 h-full bg-transparent hover:bg-[#046241] dark:hover:bg-[#FFC370] cursor-col-resize transition-colors shrink-0 z-30 relative items-center justify-center group ${
-              isResizing ? "bg-[#046241] dark:bg-[#FFC370]" : ""
-            }`}
-          >
-            <div className="w-0.5 h-10 rounded-full bg-gray-300 dark:bg-white/20 group-hover:bg-white dark:group-hover:bg-[#133020] transition-colors" />
-          </div>
-        )}
+        <div
+          onMouseDown={startResizing}
+          title="Drag to resize message list pane"
+          className={`hidden lg:flex w-2 -ml-1 h-full bg-transparent hover:bg-[#046241] dark:hover:bg-[#FFC370] cursor-col-resize transition-colors shrink-0 z-30 relative items-center justify-center group ${
+            isResizing ? "bg-[#046241] dark:bg-[#FFC370]" : ""
+          }`}
+        >
+          <div className="w-0.5 h-10 rounded-full bg-gray-300 dark:bg-white/20 group-hover:bg-white dark:group-hover:bg-[#133020] transition-colors" />
+        </div>
 
         {/* Right Message Detail Pane */}
-        <section className={`flex-1 w-full flex-col h-full bg-[#F9F7F7] dark:bg-[#08170d] overflow-y-auto ${
-          isDetailOpen && selectedMessage ? "flex" : "hidden md:flex"
+        <section className={`flex-1 w-full flex-col h-full bg-[#F9F7F7] dark:bg-[#08170d] overflow-y-auto min-w-0 ${
+          isDetailOpen && selectedMessage ? "flex" : "hidden lg:flex"
         }`}>
           {selectedMessage && isDetailOpen ? (
             <>
@@ -444,11 +562,11 @@ export default function InternalMail() {
                   <button 
                     onClick={() => setIsDetailOpen(false)}
                     title="Back to message list" 
-                    className="md:hidden p-2 rounded-lg hover:bg-gray-100 dark:hover:bg-white/10 hover:text-[#133020] dark:hover:text-white transition cursor-pointer flex items-center gap-1 text-xs font-bold" 
+                    className="lg:hidden p-2 rounded-lg hover:bg-gray-100 dark:hover:bg-white/10 hover:text-[#133020] dark:hover:text-white transition cursor-pointer flex items-center gap-1.5 text-xs font-extrabold bg-gray-100 dark:bg-white/10 px-3 mr-2 text-[#133020] dark:text-white" 
                     type="button"
                   >
                     <ChevronLeft size={18} />
-                    <span>Back</span>
+                    <span>Back to Messages</span>
                   </button>
                   <button 
                     onClick={handlePrevMessage}
@@ -497,7 +615,7 @@ export default function InternalMail() {
                     />
                   </button>
                   <button 
-                    onClick={() => setIsDetailOpen(false)}
+                    onClick={() => { setIsDetailOpen(false); setSelectedId(null); }}
                     title="Close message view (X)"
                     className="p-2 rounded-lg text-gray-400 hover:text-red-500 hover:bg-red-50 dark:hover:bg-red-950/40 transition cursor-pointer" 
                     type="button"

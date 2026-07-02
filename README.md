@@ -50,7 +50,8 @@ IMAP_SERVER=imap.gmail.com
 IMAP_PORT=993
 
 SUPABASE_URL=https://your-project-id.supabase.co
-SUPABASE_KEY=your_supabase_key
+SUPABASE_KEY=your_backend_supabase_key
+SUPABASE_SERVICE_ROLE_KEY=your_service_role_key
 SUPABASE_APPLICANTS_TABLE=applicants
 
 OLLAMA_BASE_URL=http://localhost:11434
@@ -69,6 +70,13 @@ database/schema.sql
 ```
 
 This creates the `applicants` table used by the MCP tools.
+
+For the React frontend, create `frontend/.env` from `frontend/.env.example`:
+
+```env
+VITE_SUPABASE_URL=https://your-project-id.supabase.co
+VITE_SUPABASE_ANON_KEY=your_supabase_anon_key
+```
 
 ### 4. Prepare Ollama
 
@@ -113,8 +121,8 @@ To protect sensitive HR data, the Lifemail frontend uses a bespoke **Invite-Only
 ### 🔐 How Email Authentication Works
 1. **No Public Registration:** Users cannot create their own accounts via the UI.
 2. **Admin Provisioning:** Developers and HR Administrators must provision accounts using the backend Admin API.
-3. **Forced Password Reset:** When a user is created via our CLI, they are assigned a temporary 10-character password and flagged with `force_password_reset: true` in Supabase `user_metadata`.
-4. **Auth Guard Middleware:** The `<ProtectedRoute>` React component intercepts all route transitions. When a user logs in for the first time, they are mathematically blocked from accessing `/dashboard` and are routed to `/reset-password` to establish a private password.
+3. **Forced Password Reset:** When a user is created via our CLI, they are assigned a temporary 16-character password and flagged through `profiles.must_reset_password`.
+4. **Auth Guard Middleware:** The shared auth provider validates the Supabase session, caches the result, and lets `<ProtectedRoute>` route first-time users to `/reset-password` before they can access `/dashboard`.
 
 ### 🧑‍💻 How to Create Users (Local Development & Seeding)
 To create a new employee or test user, open your terminal inside the `frontend/` directory and execute the built-in NPM script:

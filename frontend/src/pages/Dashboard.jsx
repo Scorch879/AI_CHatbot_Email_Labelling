@@ -12,7 +12,14 @@ const Dashboard = () => {
 
   useEffect(() => {
     const fetchData = async () => {
-      const { data } = await supabase.from('applicants').select('status, type, created_at');
+      if (!supabase) return;
+
+      const { data, error } = await supabase.from('applicants').select('status, type, created_at');
+      if (error) {
+        console.error('Dashboard data fetch failed:', error.message);
+        return;
+      }
+
       if (!data) return;
       
       const total = data.length;
@@ -53,10 +60,10 @@ const Dashboard = () => {
   }, [filter]);
 
   return (
-    <div className="flex min-h-screen bg-[#F9F7F7] dark:bg-[#08170d] transition-colors font-sans text-[#133020] dark:text-[#eff7ed]">
+    <div className="flex flex-col lg:flex-row min-h-screen bg-[#F9F7F7] dark:bg-[#08170d] transition-colors font-sans text-[#133020] dark:text-[#eff7ed]">
       <Sidebar activeTab="Dashboard" />
 
-      <main className="flex-1 flex flex-col h-screen overflow-hidden w-full">
+      <main className="flex-1 flex flex-col h-[calc(100vh-69px)] lg:h-screen overflow-hidden w-full">
         
         {/* Sticky Header Row */}
         <header className="p-4 sm:p-6 lg:p-8 pb-4 sm:pb-5 lg:pb-6 border-b border-gray-200 dark:border-white/10 bg-[#F9F7F7] dark:bg-[#08170d] shrink-0 z-10">
@@ -88,61 +95,61 @@ const Dashboard = () => {
         <div className="flex-1 overflow-y-auto p-4 sm:p-6 lg:p-8 pt-4 sm:pt-6 lg:pt-6 w-full">
           <div className="max-w-7xl mx-auto w-full space-y-8">
             {/* Analytics Stats Grid */}
-        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 sm:gap-6 mb-8">
-          {[ 
-            { l: 'Total Applicants', v: stats.total, i: <Users/>, c: 'text-[#046241] dark:text-[#FFC370]', b: 'bg-[#f5eedb] dark:bg-[#046241]/20' }, 
-            { l: 'Interns Accepted', v: stats.intern, i: <Briefcase/>, c: 'text-[#046241] dark:text-[#FFC370]', b: 'bg-[#f5eedb] dark:bg-[#046241]/20' }, 
-            { l: 'Regular Accepted', v: stats.regular, i: <UserCheck/>, c: 'text-[#046241] dark:text-[#FFC370]', b: 'bg-[#f5eedb] dark:bg-[#046241]/20' }, 
-            { l: 'Acceptance Rate', v: stats.rate + '%', i: <PieChart/>, c: 'text-[#046241] dark:text-[#FFC370]', b: 'bg-[#f5eedb] dark:bg-[#046241]/20' }
-          ].map((s) => (
-            <div 
-              key={s.l} 
-              className="bg-white dark:bg-[#133020] p-6 rounded-2xl shadow-xs border border-gray-200 dark:border-white/10 flex items-center gap-4 transition-all hover:shadow-md hover:border-[#FFC370]/50"
-            >
-              <div className={`p-3.5 rounded-xl ${s.b} ${s.c}`}>{s.i}</div>
-              <div>
-                <p className="text-xs font-bold uppercase tracking-wider text-gray-500 dark:text-white/60">{s.l}</p>
-                <p className="text-2xl font-extrabold text-[#133020] dark:text-white mt-0.5">{s.v}</p>
+            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 sm:gap-6 mb-8">
+              {[ 
+                { l: 'Total Applicants', v: stats.total, i: <Users/>, c: 'text-[#046241] dark:text-[#FFC370]', b: 'bg-[#f5eedb] dark:bg-[#046241]/20' }, 
+                { l: 'Interns Accepted', v: stats.intern, i: <Briefcase/>, c: 'text-[#046241] dark:text-[#FFC370]', b: 'bg-[#f5eedb] dark:bg-[#046241]/20' }, 
+                { l: 'Regular Accepted', v: stats.regular, i: <UserCheck/>, c: 'text-[#046241] dark:text-[#FFC370]', b: 'bg-[#f5eedb] dark:bg-[#046241]/20' }, 
+                { l: 'Acceptance Rate', v: stats.rate + '%', i: <PieChart/>, c: 'text-[#046241] dark:text-[#FFC370]', b: 'bg-[#f5eedb] dark:bg-[#046241]/20' }
+              ].map((s) => (
+                <div 
+                  key={s.l} 
+                  className="bg-white dark:bg-[#133020] p-6 rounded-2xl shadow-xs border border-gray-200 dark:border-white/10 flex items-center gap-4 transition-all hover:shadow-md hover:border-[#FFC370]/50"
+                >
+                  <div className={`p-3.5 rounded-xl ${s.b} ${s.c}`}>{s.i}</div>
+                  <div>
+                    <p className="text-xs font-bold uppercase tracking-wider text-gray-500 dark:text-white/60">{s.l}</p>
+                    <p className="text-2xl font-extrabold text-[#133020] dark:text-white mt-0.5">{s.v}</p>
+                  </div>
+                </div>
+              ))}
+            </div>
+
+            {/* Analytics Chart */}
+            <div className="bg-white dark:bg-[#133020] p-6 sm:p-8 rounded-2xl shadow-xs border border-gray-200 dark:border-white/10 h-[400px] flex flex-col justify-between">
+              <h3 className="text-base font-black text-[#133020] dark:text-white mb-4">Acceptance Analytics ({filter})</h3>
+              <div className="flex-1 w-full min-h-0">
+                {chartData.length > 0 ? (
+                  <ResponsiveContainer width="100%" height="100%">
+                    <BarChart data={chartData} margin={{ top: 10, right: 10, left: -20, bottom: 0 }}>
+                      <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#88888820" />
+                      <XAxis dataKey="name" stroke="#88888880" fontSize={12} tickLine={false} />
+                      <YAxis stroke="#88888880" fontSize={12} tickLine={false} />
+                      <Tooltip 
+                        contentStyle={{ 
+                          backgroundColor: '#133020', 
+                          color: '#ffffff', 
+                          borderRadius: '12px', 
+                          border: '1px solid #FFC370',
+                          fontWeight: 'bold',
+                          fontSize: '12px'
+                        }} 
+                      />
+                      <Legend wrapperStyle={{ paddingTop: '15px', fontSize: '12px', fontWeight: 'bold' }} />
+                      <Bar dataKey="InternAccepted" name="Intern Accepted" fill="#046241" radius={[4, 4, 0, 0]} />
+                      <Bar dataKey="InternRejected" name="Intern Rejected" fill="#f87171" radius={[4, 4, 0, 0]} />
+                      <Bar dataKey="RegularAccepted" name="Regular Accepted" fill="#FFC370" radius={[4, 4, 0, 0]} />
+                      <Bar dataKey="RegularRejected" name="Regular Rejected" fill="#FFB347" radius={[4, 4, 0, 0]} />
+                    </BarChart>
+                  </ResponsiveContainer>
+                ) : (
+                  <div className="text-gray-400 dark:text-white/40 font-bold text-lg h-full flex items-center justify-center">NO DATA AVAILABLE</div>
+                )}
               </div>
             </div>
-          ))}
-        </div>
-
-        {/* Analytics Chart */}
-        <div className="bg-white dark:bg-[#133020] p-6 sm:p-8 rounded-2xl shadow-xs border border-gray-200 dark:border-white/10 h-[400px] flex flex-col justify-between">
-          <h3 className="text-base font-black text-[#133020] dark:text-white mb-4">Acceptance Analytics ({filter})</h3>
-          <div className="flex-1 w-full min-h-0">
-            {chartData.length > 0 ? (
-              <ResponsiveContainer width="100%" height="100%">
-                <BarChart data={chartData} margin={{ top: 10, right: 10, left: -20, bottom: 0 }}>
-                  <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#88888820" />
-                  <XAxis dataKey="name" stroke="#88888880" fontSize={12} tickLine={false} />
-                  <YAxis stroke="#88888880" fontSize={12} tickLine={false} />
-                  <Tooltip 
-                    contentStyle={{ 
-                      backgroundColor: '#133020', 
-                      color: '#ffffff', 
-                      borderRadius: '12px', 
-                      border: '1px solid #FFC370',
-                      fontWeight: 'bold',
-                      fontSize: '12px'
-                    }} 
-                  />
-                  <Legend wrapperStyle={{ paddingTop: '15px', fontSize: '12px', fontWeight: 'bold' }} />
-                  <Bar dataKey="InternAccepted" name="Intern Accepted" fill="#046241" radius={[4, 4, 0, 0]} />
-                  <Bar dataKey="InternRejected" name="Intern Rejected" fill="#f87171" radius={[4, 4, 0, 0]} />
-                  <Bar dataKey="RegularAccepted" name="Regular Accepted" fill="#FFC370" radius={[4, 4, 0, 0]} />
-                  <Bar dataKey="RegularRejected" name="Regular Rejected" fill="#FFB347" radius={[4, 4, 0, 0]} />
-                </BarChart>
-              </ResponsiveContainer>
-            ) : (
-              <div className="text-gray-400 dark:text-white/40 font-bold text-lg h-full flex items-center justify-center">NO DATA AVAILABLE</div>
-            )}
           </div>
         </div>
-      </div>
-      </div>
-      <ChatbotAssistant />
+        <ChatbotAssistant />
       </main>
     </div>
   );

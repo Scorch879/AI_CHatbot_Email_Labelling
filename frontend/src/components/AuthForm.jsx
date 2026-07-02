@@ -154,7 +154,7 @@ const AuthForm = () => {
           <InputField 
             icon={Mail} 
             type="email" 
-            label="Work email" 
+            label="Work Email" 
             placeholder="you@lifemail.app"
             value={email}
             onChange={(e) => setEmail(e.target.value)}
@@ -165,7 +165,7 @@ const AuthForm = () => {
             icon={Lock} 
             type="password" 
             label="Password" 
-            placeholder="Enter your password" 
+            placeholder="Enter Your Password" 
             value={password}
             onChange={(e) => setPassword(e.target.value)}
             required

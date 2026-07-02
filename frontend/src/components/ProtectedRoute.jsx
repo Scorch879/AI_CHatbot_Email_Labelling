@@ -10,16 +10,25 @@ const ProtectedRoute = ({ children }) => {
 
   useEffect(() => {
     const checkAuth = async () => {
-      const { data: { session } } = await supabase.auth.getSession();
+      // First check session, then perform live server validation via getUser() to prevent token tampering/bypass
+      const { data: { session }, error: sessionError } = await supabase.auth.getSession();
       
-      if (!session) {
+      if (!session || sessionError) {
+        setIsAuthenticated(false);
+        setNeedsReset(false);
+        return;
+      }
+
+      // Live server verification against GoTrue database
+      const { data: { user }, error: userError } = await supabase.auth.getUser();
+      if (!user || userError) {
         setIsAuthenticated(false);
         setNeedsReset(false);
         return;
       }
 
       setIsAuthenticated(true);
-      const userMeta = session.user?.user_metadata || {};
+      const userMeta = user?.user_metadata || {};
       setNeedsReset(userMeta.force_password_reset === true);
     };
 

@@ -2,6 +2,7 @@ import { BrowserRouter as Router, Routes, Route, Navigate } from 'react-router-d
 import AuthForm from './components/AuthForm'
 import ResetPassword from './pages/ResetPassword'
 import Dashboard from './pages/Dashboard'
+import InternalMail from './pages/InternalMail'
 import ProtectedRoute from './components/ProtectedRoute'
 
 function App() {
@@ -22,6 +23,14 @@ function App() {
           element={
             <ProtectedRoute>
               <Dashboard />
+            </ProtectedRoute>
+          } 
+        />
+        <Route 
+          path="/dashboard/internal-mail" 
+          element={
+            <ProtectedRoute>
+              <InternalMail />
             </ProtectedRoute>
           } 
         />

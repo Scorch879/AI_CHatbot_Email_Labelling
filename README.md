@@ -56,6 +56,8 @@ SUPABASE_APPLICANTS_TABLE=applicants
 OLLAMA_BASE_URL=http://localhost:11434
 OLLAMA_MODEL=llama3.2:3b
 EXCEL_OUTPUT_PATH=exports/applicant_report.xlsx
+ENABLE_SCHEDULED_REPORT=false
+RUN_REPORT_ONCE=false
 ```
 
 Start with `DEMO_MODE=true` for testing. Change it to `false` when you are ready to connect the real HR inbox.
@@ -97,7 +99,7 @@ python lifewood-hr-mcp/server.py
 python cron/scheduler.py
 ```
 
-By default, `RUN_ONCE=true`, so it runs one sync and one report export immediately.
+By default, `RUN_ONCE=true`, so it runs one email sync only. Excel reports are no longer generated automatically on every backend/scheduler run. Generate a report only by sending the report/export command, or enable scheduled reports with `ENABLE_SCHEDULED_REPORT=true`.
 
 - Do not upload `.env` to GitHub.
 - Use a Gmail app password, not your normal Gmail password.
